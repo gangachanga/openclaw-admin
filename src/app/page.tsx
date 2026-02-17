@@ -1,21 +1,74 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+
+interface HealthCheck {
+  name: string;
+  icon: string;
+  status: 'ok' | 'warning' | 'error';
+  detail: string;
+}
 
 export default function Dashboard() {
   const { connected, status, error, refreshStatus } = useAdmin();
+  const [health, setHealth] = useState<{ checks: HealthCheck[]; overall: string; timestamp: string } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+
+  const loadHealth = async () => {
+    try {
+      setHealthLoading(true);
+      const res = await fetch('/api/ssh/health');
+      const data = await res.json();
+      if (!data.error) setHealth(data);
+    } catch {} finally {
+      setHealthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (connected) loadHealth();
+  }, [connected]);
+
+  // Auto-refresh health every 60s
+  useEffect(() => {
+    if (!connected) return;
+    const interval = setInterval(loadHealth, 60000);
+    return () => clearInterval(interval);
+  }, [connected]);
+
+  const statusColor = (s: string) => {
+    if (s === 'ok') return 'text-green-400';
+    if (s === 'warning') return 'text-yellow-400';
+    return 'text-red-400';
+  };
+
+  const statusDot = (s: string) => {
+    if (s === 'ok') return 'bg-green-500';
+    if (s === 'warning') return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
+  const overallLabel = (s: string) => {
+    if (s === 'ok') return { text: 'Todo operativo', color: 'text-green-400', bg: 'bg-green-900/30 border-green-800' };
+    if (s === 'warning') return { text: 'Advertencias', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-800' };
+    return { text: 'Hay errores', color: 'text-red-400', bg: 'bg-red-900/30 border-red-800' };
+  };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">🦞 OpenClaw Admin</h1>
-        <button
-          onClick={() => refreshStatus()}
-          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm transition-colors"
-        >
-          Actualizar
-        </button>
+        <div className="flex gap-2">
+          <button onClick={loadHealth} disabled={healthLoading}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50">
+            {healthLoading ? '...' : '🔄 Health Check'}
+          </button>
+          <button onClick={() => refreshStatus()}
+            className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -30,45 +83,137 @@ export default function Dashboard() {
         </div>
       )}
 
-      {connected && status && (
+      {connected && (
         <div className="space-y-6">
-          {/* Status Card */}
-          <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-            <h2 className="text-lg font-semibold text-white mb-4">Estado del Gateway</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-gray-400 text-xs">Estado</p>
-                <p className="text-green-400 font-medium">Conectado</p>
+          {/* Overall health banner */}
+          {health && (
+            <div className={`p-4 rounded-lg border ${overallLabel(health.overall).bg} flex items-center justify-between`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-4 h-4 rounded-full ${statusDot(health.overall)} ${health.overall === 'ok' ? '' : 'animate-pulse'}`} />
+                <span className={`text-lg font-semibold ${overallLabel(health.overall).color}`}>
+                  {overallLabel(health.overall).text}
+                </span>
               </div>
-              <div>
-                <p className="text-gray-400 text-xs">Versión</p>
-                <p className="text-white">{status.version || status.raw?.substring(0, 30) || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs">Uptime</p>
-                <p className="text-white">{status.uptime || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-xs">Modelo</p>
-                <p className="text-white">{status.model || 'N/A'}</p>
+              <span className="text-xs text-gray-500">
+                Último check: {health.timestamp ? new Date(health.timestamp).toLocaleTimeString() : '?'}
+              </span>
+            </div>
+          )}
+
+          {/* Health checks grid */}
+          {health && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {health.checks.map((check, i) => (
+                <div key={i} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span>{check.icon}</span>
+                    <span className="text-sm text-white font-medium">{check.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${statusDot(check.status)}`} />
+                    <span className={`text-xs ${statusColor(check.status)}`}>
+                      {check.status === 'ok' ? '✓' : check.status === 'warning' ? '⚠' : '✗'}
+                    </span>
+                    <span className="text-xs text-gray-400 truncate">{check.detail}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Gateway status */}
+          {status && (
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <h2 className="text-lg font-semibold text-white mb-4">Estado del Gateway</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-gray-400 text-xs">Estado</p>
+                  <p className={`font-medium ${status.state === 'running' || status.state === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {status.state || 'unknown'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Versión</p>
+                  <p className="text-white">{status.version || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Uptime</p>
+                  <p className="text-white">{status.uptime || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Modelo primario</p>
+                  <p className="text-white text-sm">{status.model || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">PID</p>
+                  <p className="text-white">{status.pid || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Memoria</p>
+                  <p className="text-white">{status.memory || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">CPU</p>
+                  <p className="text-white">{status.cpu || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-xs">Red</p>
+                  <p className="text-white">{status.bind || '?'}:{status.port || '?'} · {status.agents || 0} agentes</p>
+                </div>
               </div>
             </div>
+          )}
+
+          {/* Quick links */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { href: '/agents', icon: '🤖', label: 'Agentes', desc: 'Configurar agentes', color: 'blue' },
+              { href: '/sessions', icon: '⚡', label: 'Sesiones', desc: 'Sesiones activas', color: 'yellow' },
+              { href: '/costs', icon: '💰', label: 'Costos', desc: 'Dashboard de costos', color: 'green' },
+              { href: '/cron', icon: '⏰', label: 'Cron', desc: 'Jobs programados', color: 'purple' },
+              { href: '/knowledge', icon: '📚', label: 'Knowledge', desc: 'Archivos workspace', color: 'orange' },
+              { href: '/config', icon: '⚙️', label: 'Config', desc: 'Configuración', color: 'gray' },
+              { href: '/monitoring', icon: '📊', label: 'Logs', desc: 'Monitoreo y logs', color: 'pink' },
+              { href: '/terminal', icon: '🖥️', label: 'Terminal', desc: 'SSH terminal', color: 'red' },
+            ].map(link => {
+              const colors: Record<string, string> = {
+                blue: 'hover:bg-blue-600 hover:border-blue-500 hover:shadow-blue-500/20',
+                green: 'hover:bg-green-600 hover:border-green-500 hover:shadow-green-500/20',
+                purple: 'hover:bg-purple-600 hover:border-purple-500 hover:shadow-purple-500/20',
+                orange: 'hover:bg-orange-600 hover:border-orange-500 hover:shadow-orange-500/20',
+                yellow: 'hover:bg-yellow-600 hover:border-yellow-500 hover:shadow-yellow-500/20',
+                gray: 'hover:bg-gray-600 hover:border-gray-500 hover:shadow-gray-500/20',
+                pink: 'hover:bg-pink-600 hover:border-pink-500 hover:shadow-pink-500/20',
+                red: 'hover:bg-red-600 hover:border-red-500 hover:shadow-red-500/20',
+              };
+              return (
+                <a key={link.href} href={link.href}
+                  className={`bg-gray-800 border border-gray-600 rounded-xl p-4 
+                    transition-all duration-200 ease-out
+                    hover:scale-[1.02] hover:shadow-lg hover:-translate-y-0.5
+                    active:scale-[0.98] active:translate-y-0
+                    cursor-pointer flex flex-col items-center text-center gap-2
+                    ${colors[link.color]}`}>
+                  <span className="text-3xl drop-shadow-sm">{link.icon}</span>
+                  <h3 className="text-white font-semibold">{link.label}</h3>
+                  <p className="text-xs text-gray-400 group-hover:text-gray-200">{link.desc}</p>
+                </a>
+              );
+            })}
           </div>
 
           {/* Raw Status */}
-          {status.raw && (
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <h2 className="text-lg font-semibold text-white mb-2">Status Raw</h2>
-              <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono bg-gray-900 p-4 rounded">
+          {status?.raw && (
+            <details className="bg-gray-800 rounded-lg border border-gray-700">
+              <summary className="p-4 text-white font-medium cursor-pointer hover:bg-gray-700/50">
+                📋 Status Raw
+              </summary>
+              <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono bg-gray-900 p-4 mx-4 mb-4 rounded">
                 {status.raw}
               </pre>
-            </div>
+            </details>
           )}
         </div>
-      )}
-
-      {connected && !status && (
-        <div className="text-gray-400 text-center py-12">Cargando status...</div>
       )}
     </div>
   );

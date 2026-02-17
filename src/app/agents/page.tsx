@@ -9,19 +9,23 @@ interface AgentForm {
   name: string;
   model: string;
   workspace: string;
-  enabled: boolean;
   tools: { allow: string[]; deny: string[] };
-  subagents: { allowAgents: string[]; maxConcurrent: number };
+  subagents: { allowAgents: string[] };
   sandbox: { mode: string; scope: string };
 }
 
 const emptyForm: AgentForm = {
-  id: '', name: '', model: 'claude-sonnet-4-20250514', workspace: '',
-  enabled: true,
+  id: '', name: '', model: '', workspace: '',
   tools: { allow: [], deny: [] },
-  subagents: { allowAgents: [], maxConcurrent: 4 },
+  subagents: { allowAgents: [] },
   sandbox: { mode: 'off', scope: 'session' },
 };
+
+interface ModelOption {
+  id: string;
+  name: string;
+  provider: string;
+}
 
 export default function AgentsPage() {
   const { api, connected } = useAdmin();
@@ -29,6 +33,7 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentForm | null>(null);
   const [error, setError] = useState('');
+  const [models, setModels] = useState<{ primaryModel: string; builtin: ModelOption[]; custom: ModelOption[]; aliases: any[] }>({ primaryModel: '', builtin: [], custom: [], aliases: [] });
 
   const load = async () => {
     try {
@@ -42,7 +47,15 @@ export default function AgentsPage() {
     }
   };
 
-  useEffect(() => { if (connected) load(); }, [connected]);
+  const loadModels = async () => {
+    try {
+      const res = await fetch('/api/ssh/models');
+      const data = await res.json();
+      if (data.builtin) setModels(data);
+    } catch {}
+  };
+
+  useEffect(() => { if (connected) { load(); loadModels(); } }, [connected]);
 
   const save = async () => {
     if (!editing) return;
@@ -92,17 +105,23 @@ export default function AgentsPage() {
           {agents.map((agent: any) => (
             <div key={agent.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h3 className="text-white font-medium">{agent.name || agent.id}</h3>
-                  <p className="text-gray-400 text-xs">{agent.id}</p>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={`/api/avatars/${agent.id}`}
+                    alt={agent.name || agent.id}
+                    className="w-10 h-10 rounded-full object-cover border border-gray-600"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                  <div>
+                    <h3 className="text-white font-medium">{agent.name || agent.id}</h3>
+                    <p className="text-gray-400 text-xs">{agent.id}</p>
+                  </div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded ${agent.enabled !== false ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-                  {agent.enabled !== false ? 'Activo' : 'Inactivo'}
-                </span>
+{/* status badge removed - openclaw doesn't support enabled field */}
               </div>
               <p className="text-gray-400 text-sm mb-3">Modelo: {agent.model || 'default'}</p>
               <div className="flex gap-2">
-                <button onClick={() => setEditing({ ...emptyForm, ...agent, tools: { allow: [], deny: [], ...agent.tools }, subagents: { allowAgents: [], maxConcurrent: 4, ...agent.subagents }, sandbox: { mode: 'off', scope: 'session', ...agent.sandbox } })} className="text-xs text-blue-400 hover:text-blue-300">
+                <button onClick={() => setEditing({ ...emptyForm, ...agent, tools: { allow: [], deny: [], ...agent.tools }, subagents: { allowAgents: [], ...agent.subagents }, sandbox: { mode: 'off', scope: 'session', ...agent.sandbox } })} className="text-xs text-blue-400 hover:text-blue-300">
                   Editar
                 </button>
                 <button onClick={() => remove(agent.id)} className="text-xs text-red-400 hover:text-red-300">
@@ -132,7 +151,36 @@ export default function AgentsPage() {
                 </div>
                 <div>
                   <label className="text-sm text-gray-400">Modelo</label>
-                  <input value={editing.model} onChange={e => setEditing({ ...editing, model: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
+                  <select value={editing.model || ''} onChange={e => setEditing({ ...editing, model: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+                    <option value="">Sin override ({models.primaryModel || 'default del sistema'})</option>
+                    {models.aliases.length > 0 && (
+                      <optgroup label="⚡ Aliases">
+                        {models.aliases.map(a => (
+                          <option key={a.id} value={a.id}>{a.name} → {a.resolves}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {(() => {
+                      const grouped: Record<string, ModelOption[]> = {};
+                      for (const m of models.builtin) {
+                        (grouped[m.provider] = grouped[m.provider] || []).push(m);
+                      }
+                      return Object.entries(grouped).map(([provider, ms]) => (
+                        <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
+                          {ms.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </optgroup>
+                      ));
+                    })()}
+                    {models.custom.length > 0 && (
+                      <optgroup label="🔧 Custom">
+                        {models.custom.map(m => (
+                          <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-400">Workspace</label>
@@ -164,21 +212,14 @@ export default function AgentsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-400">Sandbox Mode</label>
-                  <select value={editing.sandbox.mode} onChange={e => setEditing({ ...editing, sandbox: { ...editing.sandbox, mode: e.target.value } })}
-                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
-                    <option value="off">Off</option>
-                    <option value="non-main">Non-Main</option>
-                    <option value="all">All</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">Max Concurrent Subagents</label>
-                  <input type="number" value={editing.subagents.maxConcurrent} onChange={e => setEditing({ ...editing, subagents: { ...editing.subagents, maxConcurrent: parseInt(e.target.value) || 4 } })}
-                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
-                </div>
+              <div>
+                <label className="text-sm text-gray-400">Sandbox Mode</label>
+                <select value={editing.sandbox.mode} onChange={e => setEditing({ ...editing, sandbox: { ...editing.sandbox, mode: e.target.value } })}
+                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+                  <option value="off">Off</option>
+                  <option value="non-main">Non-Main</option>
+                  <option value="all">All</option>
+                </select>
               </div>
             </div>
 

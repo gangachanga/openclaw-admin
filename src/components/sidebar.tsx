@@ -11,8 +11,11 @@ const NAV = [
   { href: '/permissions', label: 'Permisos', icon: '🔐' },
   { href: '/cron', label: 'Cron Jobs', icon: '⏰' },
   { href: '/config', label: 'Configuración', icon: '⚙️' },
+  { href: '/sessions', label: 'Sesiones', icon: '⚡' },
+  { href: '/costs', label: 'Costos', icon: '💰' },
   { href: '/knowledge', label: 'Knowledge', icon: '📚' },
   { href: '/monitoring', label: 'Monitoreo', icon: '📊' },
+  { href: '/terminal', label: 'Terminal', icon: '🖥️' },
 ];
 
 export function Sidebar() {

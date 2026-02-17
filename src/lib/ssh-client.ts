@@ -53,6 +53,10 @@ export async function sshExec(command: string, timeout = 30000): Promise<{ stdou
   const cfg = getConfig();
   const connectCfg = buildConnectConfig(cfg);
 
+  // Add npm-global bin to PATH for openclaw commands
+  const pathPrefix = 'PATH=$HOME/.npm-global/bin:$PATH';
+  const fullCommand = `${pathPrefix} ${command}`;
+
   return new Promise((resolve, reject) => {
     const conn = new Client();
     const timer = setTimeout(() => {
@@ -61,7 +65,7 @@ export async function sshExec(command: string, timeout = 30000): Promise<{ stdou
     }, timeout);
 
     conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
+      conn.exec(fullCommand, (err, stream) => {
         if (err) {
           clearTimeout(timer);
           conn.end();
