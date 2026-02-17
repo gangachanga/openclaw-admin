@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
 
   const file = req.nextUrl.searchParams.get('file');
   const agentId = req.nextUrl.searchParams.get('agent');
+  const subdir = req.nextUrl.searchParams.get('subdir') || ''; // e.g., 'memory'
 
   try {
     // Resolve workspace path from agent config
@@ -24,33 +25,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Append subdirectory if specified
+    const fullPath = subdir ? `${wsPath}/${subdir}` : wsPath;
+
     if (file) {
       // Read specific file
-      const content = await sshReadFile(`${wsPath}/${file}`);
-      const statResult = await sshExec(`stat -c '%s %Y' "${wsPath}/${file}" 2>/dev/null || echo "0 0"`);
+      const content = await sshReadFile(`${fullPath}/${file}`);
+      const statResult = await sshExec(`stat -c '%s %Y' "${fullPath}/${file}" 2>/dev/null || echo "0 0"`);
       const [size, mtime] = statResult.stdout.split(' ');
       return NextResponse.json({
         name: file,
-        path: `${wsPath}/${file}`,
+        path: `${fullPath}/${file}`,
         content,
         size: parseInt(size || '0'),
         lastModified: parseInt(mtime || '0') * 1000,
       });
     }
 
-    // List all workspace files
-    const result = await sshExec(`ls -la ${wsPath}/*.md 2>/dev/null; ls -la ${wsPath}/*.txt 2>/dev/null || true`);
+    // List all files in the directory
+    const result = await sshExec(`ls -la ${fullPath}/ 2>/dev/null | tail -n +2 || true`);
     const files = result.stdout
       .split('\n')
-      .filter((line) => line.includes('.md') || line.includes('.txt'))
+      .filter((line) => line.trim() && !line.startsWith('total'))
       .map((line) => {
         const parts = line.trim().split(/\s+/);
-        const name = parts[parts.length - 1]?.split('/').pop() || '';
-        return { name, path: `${wsPath}/${name}` };
+        const isDir = line.startsWith('d');
+        const name = parts[parts.length - 1] || '';
+        return { name, isDir, path: `${fullPath}/${name}` };
       })
-      .filter((f) => f.name);
+      .filter((f) => f.name && f.name !== '.' && f.name !== '..');
 
-    return NextResponse.json({ files });
+    return NextResponse.json({ files, subdir });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { file, content, agent: agentId } = await req.json();
+    const { file, content, agent: agentId, subdir } = await req.json();
     if (!file || content === undefined) {
       return NextResponse.json({ error: 'file and content required' }, { status: 400 });
     }
@@ -78,7 +83,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await sshWriteFile(`${wsPath}/${file}`, content);
+    const fullPath = subdir ? `${wsPath}/${subdir}` : wsPath;
+    await sshWriteFile(`${fullPath}/${file}`, content);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

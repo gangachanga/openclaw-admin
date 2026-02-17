@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell
+} from 'recharts';
 
 interface AgentCost {
   id: string;
@@ -18,6 +22,38 @@ interface CostData {
   byModel: { model: string; cost: number; calls: number }[];
   total: number;
 }
+
+const MODEL_COLORS: Record<string, string> = {
+  'opus-4-6': '#a855f7',
+  'opus-4-5': '#c084fc',
+  'sonnet-4-5': '#3b82f6',
+  'haiku-4-5': '#22c55e',
+  'gpt-5': '#f97316',
+  'gpt-4': '#eab308',
+  'kimi': '#06b6d4',
+};
+
+function getModelColor(model: string, idx: number): string {
+  for (const [key, color] of Object.entries(MODEL_COLORS)) {
+    if (model?.includes(key)) return color;
+  }
+  const fallback = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#eab308', '#06b6d4', '#ef4444', '#ec4899'];
+  return fallback[idx % fallback.length];
+}
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 shadow-lg">
+      <p className="text-gray-400 text-xs mb-1">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="text-white text-sm">
+          <span style={{ color: p.color }}>●</span> ${p.value?.toFixed(4)} ({p.payload?.calls || 0} calls)
+        </p>
+      ))}
+    </div>
+  );
+};
 
 export default function CostsPage() {
   const { connected } = useAdmin();
@@ -42,9 +78,6 @@ export default function CostsPage() {
   };
 
   useEffect(() => { if (connected) load(); }, [connected, days]);
-
-  const maxDailyCost = data ? Math.max(...data.daily.map(d => d.cost), 0.01) : 1;
-  const maxModelCost = data ? Math.max(...data.byModel.map(m => m.cost), 0.01) : 1;
 
   const avgDaily = data && data.daily.length > 0 ? data.total / data.daily.length : 0;
   const projected = avgDaily * 30;
@@ -71,7 +104,6 @@ export default function CostsPage() {
       </div>
 
       {error && <div className="p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">{error}</div>}
-
       {loading && !data && <div className="text-gray-400">Calculando costos (puede tardar unos segundos)...</div>}
 
       {data && (
@@ -96,28 +128,57 @@ export default function CostsPage() {
             </div>
           </div>
 
-          {/* Daily bar chart */}
+          {/* Daily cost area chart */}
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
             <h2 className="text-white font-medium mb-4">📊 Costo por día</h2>
-            <div className="flex items-end gap-1 h-40">
-              {data.daily.map(day => (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs text-gray-400">${day.cost.toFixed(2)}</span>
-                  <div
-                    className="w-full bg-orange-500/70 rounded-t hover:bg-orange-400/70 transition-colors"
-                    style={{ height: `${(day.cost / maxDailyCost) * 100}%`, minHeight: '2px' }}
-                    title={`${day.date}: $${day.cost.toFixed(4)} (${day.calls} calls)`}
-                  />
-                  <span className="text-xs text-gray-500 -rotate-45 origin-center whitespace-nowrap">
-                    {day.date.slice(5)}
-                  </span>
-                </div>
-              ))}
-              {data.daily.length === 0 && <div className="text-gray-500 text-sm w-full text-center">Sin datos</div>}
-            </div>
+            {data.daily.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={data.daily.map(d => ({ ...d, label: d.date.slice(5) }))}>
+                  <defs>
+                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0.05}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} />
+                  <YAxis stroke="#9ca3af" fontSize={12} tickFormatter={v => `$${v.toFixed(2)}`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area type="monotone" dataKey="cost" stroke="#f97316" strokeWidth={2}
+                    fill="url(#costGradient)" dot={{ fill: '#f97316', r: 4 }} activeDot={{ r: 6 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-gray-500 text-sm text-center py-12">Sin datos</div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Cost by model - horizontal bar chart */}
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <h2 className="text-white font-medium mb-4">🧠 Por modelo</h2>
+              {data.byModel.length > 0 ? (
+                <ResponsiveContainer width="100%" height={Math.max(200, data.byModel.length * 45)}>
+                  <BarChart data={data.byModel.map(m => ({
+                    ...m,
+                    shortName: (m.model || 'unknown').split('/').pop() || m.model,
+                  }))} layout="vertical" margin={{ left: 10, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
+                    <XAxis type="number" stroke="#9ca3af" fontSize={12} tickFormatter={v => `$${v.toFixed(2)}`} />
+                    <YAxis type="category" dataKey="shortName" stroke="#9ca3af" fontSize={11} width={120} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="cost" radius={[0, 4, 4, 0]}>
+                      {data.byModel.map((m, i) => (
+                        <Cell key={m.model} fill={getModelColor(m.model, i)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="text-gray-500 text-sm text-center py-8">Sin datos</div>
+              )}
+            </div>
+
             {/* Cost by agent */}
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <h2 className="text-white font-medium mb-4">🤖 Por agente</h2>
@@ -135,41 +196,15 @@ export default function CostsPage() {
                         <span className="text-gray-400">${agent.total.toFixed(2)} <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
                       </div>
                       <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                        <div className="bg-orange-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5">{agent.calls.toLocaleString()} llamadas</div>
                     </div>
                   );
                 })}
-              </div>
-            </div>
-
-            {/* Cost by model */}
-            <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-              <h2 className="text-white font-medium mb-4">🧠 Por modelo</h2>
-              <div className="space-y-3">
-                {data.byModel.map(m => {
-                  const pct = data.total > 0 ? (m.cost / data.total) * 100 : 0;
-                  const colors: Record<string, string> = {
-                    'claude-opus-4-6': 'bg-purple-500',
-                    'claude-opus-4-5': 'bg-purple-400',
-                    'claude-sonnet-4-5': 'bg-blue-500',
-                    'claude-haiku-4-5': 'bg-green-500',
-                  };
-                  const barColor = Object.entries(colors).find(([k]) => m.model?.includes(k))?.[1] || 'bg-gray-500';
-                  return (
-                    <div key={m.model}>
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-white">{m.model || 'unknown'}</span>
-                        <span className="text-gray-400">${m.cost.toFixed(2)} <span className="text-gray-600">({pct.toFixed(0)}%)</span></span>
-                      </div>
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div className={`${barColor} h-2 rounded-full`} style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5">{m.calls.toLocaleString()} llamadas</div>
-                    </div>
-                  );
-                })}
+                {data.agents.filter(a => a.total > 0).length === 0 && (
+                  <div className="text-gray-500 text-sm text-center py-8">Sin datos</div>
+                )}
               </div>
             </div>
           </div>

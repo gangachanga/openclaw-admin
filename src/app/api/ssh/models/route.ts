@@ -12,6 +12,12 @@ const BUILTIN_PROVIDERS: Record<string, { id: string; name: string }[]> = {
     { id: 'anthropic/claude-haiku-4-5', name: 'Claude Haiku 4.5' },
   ],
   openai: [
+    { id: 'openai/gpt-5.2', name: 'GPT-5.2' },
+    { id: 'openai/gpt-5.2-pro', name: 'GPT-5.2 Pro' },
+    { id: 'openai/gpt-5.1', name: 'GPT-5.1' },
+    { id: 'openai/gpt-5', name: 'GPT-5' },
+    { id: 'openai/gpt-5-nano', name: 'GPT-5 Nano' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o' },
     { id: 'openai/gpt-4.1', name: 'GPT-4.1' },
     { id: 'openai/gpt-4.1-mini', name: 'GPT-4.1 Mini' },
     { id: 'openai/o3', name: 'o3' },
@@ -55,7 +61,17 @@ export async function GET() {
     }
 
     // Also check if aliases reference built-in providers
-    const aliases = config?.aliases || {};
+    // Aliases come from agents.defaults.models entries that have an "alias" field
+    const agentModels = config?.agents?.defaults?.models || {};
+    const aliases: Record<string, string> = {};
+    for (const [modelId, modelData] of Object.entries(agentModels) as any) {
+      if (modelData?.alias) {
+        aliases[modelData.alias] = modelId;
+      }
+      // Also mark the provider as active
+      const prov = modelId.split('/')[0];
+      if (prov && BUILTIN_PROVIDERS[prov]) activeBuiltinProviders.add(prov);
+    }
     for (const target of Object.values(aliases) as string[]) {
       const provider = target.split('/')[0];
       if (provider && BUILTIN_PROVIDERS[provider]) {
@@ -79,6 +95,29 @@ export async function GET() {
           name: model.name || model.id,
           provider: providerKey,
         });
+      }
+    }
+
+    // Ensure any model currently used by an agent appears in the list
+    const allKnownIds = new Set([
+      ...availableBuiltin.map(m => m.id),
+      ...customModels.map(m => m.id),
+    ]);
+    const agentList = config?.agents?.list || [];
+    for (const agent of agentList) {
+      if (agent.model && !allKnownIds.has(agent.model)) {
+        const [prov, ...rest] = agent.model.split('/');
+        const modelName = rest.join('/') || prov;
+        customModels.push({ id: agent.model, name: modelName, provider: prov });
+        allKnownIds.add(agent.model);
+      }
+    }
+    // Also include primary + fallbacks that aren't already listed
+    for (const m of usedModels) {
+      if (!allKnownIds.has(m)) {
+        const [prov, ...rest] = m.split('/');
+        customModels.push({ id: m, name: rest.join('/') || prov, provider: prov });
+        allKnownIds.add(m);
       }
     }
 

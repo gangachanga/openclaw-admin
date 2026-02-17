@@ -8,7 +8,8 @@ import { useAdmin } from '@/components/ssh-provider';
 const NAV = [
   { href: '/', label: 'Panel', icon: '🦞' },
   { href: '/agents', label: 'Agentes', icon: '🤖' },
-  { href: '/permissions', label: 'Permisos', icon: '🔐' },
+  { href: '/skills', label: 'Skills', icon: '🎯' },
+  { href: '/chat', label: 'Chat', icon: '💬' },
   { href: '/cron', label: 'Cron Jobs', icon: '⏰' },
   { href: '/config', label: 'Configuración', icon: '⚙️' },
   { href: '/sessions', label: 'Sesiones', icon: '⚡' },

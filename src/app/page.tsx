@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
 
 interface HealthCheck {
@@ -14,6 +14,8 @@ export default function Dashboard() {
   const { connected, status, error, refreshStatus } = useAdmin();
   const [health, setHealth] = useState<{ checks: HealthCheck[]; overall: string; timestamp: string } | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [activity, setActivity] = useState<{ timestamp: string; type: string; message: string }[]>([]);
+  const activityRef = useRef<HTMLDivElement>(null);
 
   const loadHealth = async () => {
     try {
@@ -26,16 +28,36 @@ export default function Dashboard() {
     }
   };
 
+  const loadActivity = async () => {
+    try {
+      const res = await fetch('/api/ssh/activity');
+      const data = await res.json();
+      if (data.events) setActivity(data.events);
+    } catch {}
+  };
+
   useEffect(() => {
-    if (connected) loadHealth();
+    if (connected) { loadHealth(); loadActivity(); }
   }, [connected]);
 
-  // Auto-refresh health every 60s
+  // Auto-refresh health every 60s, activity every 15s
   useEffect(() => {
     if (!connected) return;
-    const interval = setInterval(loadHealth, 60000);
-    return () => clearInterval(interval);
+    const healthInterval = setInterval(loadHealth, 60000);
+    const activityInterval = setInterval(loadActivity, 15000);
+    return () => { clearInterval(healthInterval); clearInterval(activityInterval); };
   }, [connected]);
+
+  const activityTypeStyle = (type: string) => {
+    switch (type) {
+      case 'message': return { dot: 'bg-green-500', text: 'text-green-400', label: '💬' };
+      case 'cron': return { dot: 'bg-yellow-500', text: 'text-yellow-400', label: '⏰' };
+      case 'error': return { dot: 'bg-red-500', text: 'text-red-400', label: '❌' };
+      case 'session': return { dot: 'bg-blue-500', text: 'text-blue-400', label: '⚡' };
+      case 'channel': return { dot: 'bg-cyan-500', text: 'text-cyan-400', label: '📡' };
+      default: return { dot: 'bg-gray-500', text: 'text-gray-400', label: '🔧' };
+    }
+  };
 
   const statusColor = (s: string) => {
     if (s === 'ok') return 'text-green-400';
@@ -163,6 +185,30 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {/* Activity Feed */}
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-medium">📡 Actividad reciente</h2>
+              <button onClick={loadActivity} className="text-xs text-gray-400 hover:text-white">🔄</button>
+            </div>
+            <div ref={activityRef} className="space-y-1 max-h-64 overflow-y-auto scrollbar-thin">
+              {activity.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">Sin actividad reciente</p>
+              ) : activity.map((evt, i) => {
+                const style = activityTypeStyle(evt.type);
+                return (
+                  <div key={i} className="flex items-start gap-2 py-1.5 px-2 rounded hover:bg-gray-700/50 text-sm">
+                    <span className="flex-shrink-0 mt-0.5">{style.label}</span>
+                    <span className="text-gray-500 flex-shrink-0 text-xs mt-0.5 w-16">
+                      {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                    <span className={`${style.text} truncate`}>{evt.message}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Quick links */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

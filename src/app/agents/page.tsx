@@ -60,6 +60,7 @@ export default function AgentsPage() {
   const save = async () => {
     if (!editing) return;
     try {
+      console.log('Saving agent:', JSON.stringify(editing, null, 2));
       await api.updateAgent(editing);
       setEditing(null);
       load();
@@ -151,7 +152,10 @@ export default function AgentsPage() {
                 </div>
                 <div>
                   <label className="text-sm text-gray-400">Modelo</label>
-                  <select value={editing.model || ''} onChange={e => setEditing({ ...editing, model: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+                  <select value={editing.model || ''} onChange={e => {
+                    console.log('Model selected:', e.target.value);
+                    setEditing({ ...editing, model: e.target.value });
+                  }} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
                     <option value="">Sin override ({models.primaryModel || 'default del sistema'})</option>
                     {models.aliases.length > 0 && (
                       <optgroup label="⚡ Aliases">

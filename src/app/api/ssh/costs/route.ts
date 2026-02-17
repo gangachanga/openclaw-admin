@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       // Get cost data per agent - use find to limit to recent files
       const costData = await sshExec(
         `find ${dir} -name "*.jsonl" -mtime -${days} -exec grep -h '"cost"' {} + 2>/dev/null | jq -s '
-          [.[] | select(.message.usage.cost.total > 0)] |
+          [.[] | select(.message.model != null)] |
           {
             total: ([.[].message.usage.cost.total] | add // 0),
             count: length,

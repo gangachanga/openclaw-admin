@@ -3,18 +3,34 @@
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
 
-const WORKSPACE_FILES = ['SOUL.md', 'AGENTS.md', 'TOOLS.md', 'HEARTBEAT.md', 'BOOTSTRAP.md', 'IDENTITY.md', 'USER.md', 'MEMORY.md', 'SHIELD.md'];
+// Standard OpenClaw workspace files
+const OPENCLAW_FILES = [
+  'SOUL.md',
+  'AGENTS.md', 
+  'TOOLS.md',
+  'HEARTBEAT.md',
+  'BOOTSTRAP.md',
+  'IDENTITY.md',
+  'USER.md',
+  'MEMORY.md',
+  'SHIELD.md'
+];
+
+interface FileItem {
+  name: string;
+  path: string;
+}
 
 export default function KnowledgePage() {
   const { api, connected } = useAdmin();
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('main');
-  const [files, setFiles] = useState<{ name: string; path: string }[]>([]);
+  const [view, setView] = useState<'root' | 'memory'>('root');
+  const [memoryFiles, setMemoryFiles] = useState<FileItem[]>([]);
   const [selectedFile, setSelectedFile] = useState('');
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [skills, setSkills] = useState<any[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -25,43 +41,43 @@ export default function KnowledgePage() {
     } catch {}
   };
 
-  const loadFiles = async (agentId: string) => {
+  const loadMemoryFiles = async (agentId: string) => {
     try {
-      const data = await api.listWorkspaceFiles(agentId);
-      setFiles(data.files || WORKSPACE_FILES.map(f => ({ name: f, path: f })));
+      const data = await api.listWorkspaceFiles(agentId, 'memory');
+      // Filter to only show .md and .txt files, sorted by name
+      const filtered = (data.files || [])
+        .filter((f: any) => !f.isDir && (f.name.endsWith('.md') || f.name.endsWith('.txt')))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      setMemoryFiles(filtered);
     } catch {
-      setFiles(WORKSPACE_FILES.map(f => ({ name: f, path: f })));
+      setMemoryFiles([]);
     }
-  };
-
-  const loadSkills = async () => {
-    try {
-      const data = await api.listSkills();
-      setSkills(data.skills || []);
-    } catch {}
   };
 
   useEffect(() => {
-    if (connected) {
-      loadAgents();
-      loadSkills();
-    }
+    if (connected) loadAgents();
   }, [connected]);
 
   useEffect(() => {
     if (connected && selectedAgent) {
       setSelectedFile('');
       setContent('');
-      loadFiles(selectedAgent);
+      setView('root');
     }
   }, [connected, selectedAgent]);
 
-  const openFile = async (name: string) => {
+  useEffect(() => {
+    if (view === 'memory' && selectedAgent) {
+      loadMemoryFiles(selectedAgent);
+    }
+  }, [view, selectedAgent]);
+
+  const openFile = async (name: string, isMemory: boolean = false) => {
     try {
       setLoading(true);
       setError('');
       setSelectedFile(name);
-      const data = await api.readWorkspaceFile(name, selectedAgent);
+      const data = await api.readWorkspaceFile(name, selectedAgent, isMemory ? 'memory' : undefined);
       setContent(data.content || '');
     } catch (e: any) {
       setContent('');
@@ -76,7 +92,7 @@ export default function KnowledgePage() {
     try {
       setSaving(true);
       setError('');
-      await api.writeWorkspaceFile(selectedFile, content, selectedAgent);
+      await api.writeWorkspaceFile(selectedFile, content, selectedAgent, view === 'memory' ? 'memory' : undefined);
       setSuccess(`${selectedFile} guardado`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (e: any) {
@@ -125,23 +141,60 @@ export default function KnowledgePage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* File list */}
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase">
-            Archivos de {agentName}
-          </h2>
-          {(files.length > 0 ? files : WORKSPACE_FILES.map(f => ({ name: f, path: f }))).map((f) => (
-            <button key={f.name} onClick={() => openFile(f.name)}
-              className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${selectedFile === f.name ? 'bg-orange-600/20 text-orange-400' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
-              {f.name}
-            </button>
-          ))}
-
-          {skills.length > 0 && (
+          {view === 'root' ? (
             <>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase mt-6">Skills</h2>
-              {skills.map((s: any) => (
-                <div key={s.name} className="px-3 py-2 text-sm text-gray-400">
-                  {s.name} <span className="text-xs text-gray-600">({s.source})</span>
-                </div>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase">
+                Workspace Files
+              </h2>
+              {OPENCLAW_FILES.map((filename) => (
+                <button 
+                  key={filename} 
+                  onClick={() => openFile(filename)}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    selectedFile === filename && view === 'root'
+                      ? 'bg-orange-600/20 text-orange-400' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  {filename}
+                </button>
+              ))}
+              <div className="pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => { setView('memory'); setSelectedFile(''); setContent(''); }}
+                  className="w-full text-left px-3 py-2 rounded text-sm text-blue-400 hover:text-blue-300 hover:bg-gray-800 flex items-center gap-2"
+                >
+                  <span>📁</span>
+                  <span>memory/</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => { setView('root'); setSelectedFile(''); setContent(''); }}
+                  className="text-sm text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-gray-800"
+                >
+                  ← Volver
+                </button>
+              </div>
+              <h2 className="text-sm font-semibold text-blue-400 uppercase">
+                📁 memory/
+              </h2>
+              {memoryFiles.length === 0 && <div className="text-gray-500 text-sm px-3">No hay archivos</div>}
+              {memoryFiles.map((file) => (
+                <button 
+                  key={file.name} 
+                  onClick={() => openFile(file.name, true)}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    selectedFile === file.name && view === 'memory'
+                      ? 'bg-orange-600/20 text-orange-400' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`}
+                >
+                  {file.name}
+                </button>
               ))}
             </>
           )}
@@ -152,21 +205,32 @@ export default function KnowledgePage() {
           {selectedFile ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-white font-medium">{selectedFile} <span className="text-gray-500 text-sm">({agentName})</span></h2>
+                <h2 className="text-white font-medium">
+                  {selectedFile}
+                  <span className="text-gray-500 text-sm ml-2">
+                    ({agentName}{view === 'memory' && ' / memory'})
+                  </span>
+                </h2>
                 <button onClick={saveFile} disabled={saving}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm disabled:opacity-50">
+                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm disabled:opacity-50"
+                >
                   {saving ? 'Guardando...' : 'Guardar'}
                 </button>
               </div>
               {loading ? (
                 <div className="text-gray-400">Cargando...</div>
               ) : (
-                <textarea value={content} onChange={e => setContent(e.target.value)}
-                  className="w-full h-[65vh] bg-gray-900 border border-gray-700 rounded-lg p-4 text-gray-300 font-mono text-sm resize-none" />
+                <textarea 
+                  value={content} 
+                  onChange={e => setContent(e.target.value)}
+                  className="w-full h-[65vh] bg-gray-900 border border-gray-700 rounded-lg p-4 text-gray-300 font-mono text-sm resize-none" 
+                />
               )}
             </div>
           ) : (
-            <div className="text-gray-500 text-center py-20">Seleccioná un archivo para editar</div>
+            <div className="text-gray-500 text-center py-20">
+              Seleccioná un archivo para editar
+            </div>
           )}
         </div>
       </div>

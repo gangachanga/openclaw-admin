@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { agent } = await req.json();
+    console.log('Received agent update:', JSON.stringify(agent, null, 2));
     const content = await sshReadFile(CONFIG_PATH);
     const config = JSON.parse(content);
 
@@ -45,8 +46,15 @@ export async function POST(req: NextRequest) {
     // Sanitize the agent object
     const clean: Record<string, any> = {};
     for (const [k, v] of Object.entries(agent)) {
-      if (!VALID_KEYS.has(k)) continue;
-      if (v === '' || v === null || v === undefined) continue;
+      console.log(`Processing field: ${k} =`, v);
+      if (!VALID_KEYS.has(k)) {
+        console.log(`  Skipping ${k}: not in valid keys`);
+        continue;
+      }
+      if (v === '' || v === null || v === undefined) {
+        console.log(`  Skipping ${k}: empty/null/undefined`);
+        continue;
+      }
       if (k === 'subagents' && typeof v === 'object') {
         const sub: Record<string, any> = {};
         for (const [sk, sv] of Object.entries(v as any)) {
@@ -67,14 +75,19 @@ export async function POST(req: NextRequest) {
         if (Object.keys(t).length > 0) clean[k] = t;
       } else {
         clean[k] = v;
+        console.log(`  Added ${k} =`, v);
       }
     }
+    console.log('Clean agent:', JSON.stringify(clean, null, 2));
 
     // Preserve fields from existing config that the UI doesn't manage
     const idx = config.agents.list.findIndex((a: any) => a.id === clean.id);
     if (idx >= 0) {
       const existing = config.agents.list[idx];
+      console.log('Existing agent:', JSON.stringify(existing, null, 2));
+      console.log('Clean agent:', JSON.stringify(clean, null, 2));
       config.agents.list[idx] = { ...existing, ...clean };
+      console.log('Updated agent:', JSON.stringify(config.agents.list[idx], null, 2));
     } else {
       config.agents.list.push(clean);
     }

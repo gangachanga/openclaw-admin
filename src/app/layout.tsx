@@ -6,6 +6,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'OpenClaw Admin',
   description: 'Panel de administración remoto para OpenClaw',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
