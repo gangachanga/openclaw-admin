@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 interface Session {
   id: string;
@@ -19,6 +20,7 @@ interface Session {
 
 export default function SessionsPage() {
   const { connected } = useAdmin();
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -70,11 +72,11 @@ export default function SessionsPage() {
     if (!ts) return '';
     const diff = Date.now() - new Date(ts).getTime();
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'ahora';
-    if (mins < 60) return `hace ${mins}m`;
+    if (mins < 1) return t('sessions.now');
+    if (mins < 60) return `${t('sessions.ago')} ${mins}m`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `hace ${hrs}h`;
-    return `hace ${Math.floor(hrs / 24)}d`;
+    if (hrs < 24) return `${t('sessions.ago')} ${hrs}h`;
+    return `${t('sessions.ago')} ${Math.floor(hrs / 24)}d`;
   };
 
   const isRecent = (ts: string) => {
@@ -90,24 +92,24 @@ export default function SessionsPage() {
     (byAgent[s.agentId] = byAgent[s.agentId] || []).push(s);
   }
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('sessions.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">⚡ Sesiones Activas</h1>
+        <h1 className="text-2xl font-bold text-white">⚡ {t('sessions.title')}</h1>
         <div className="flex items-center gap-3">
           <select value={timeRange} onChange={e => setTimeRange(parseInt(e.target.value))}
             className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm">
-            <option value={10}>Últimos 10 min</option>
-            <option value={30}>Últimos 30 min</option>
-            <option value={60}>Última hora</option>
-            <option value={360}>Últimas 6 horas</option>
-            <option value={1440}>Últimas 24 horas</option>
+            <option value={10}>{t('sessions.last10min')}</option>
+            <option value={30}>{t('sessions.last30min')}</option>
+            <option value={60}>{t('sessions.lastHour')}</option>
+            <option value={360}>{t('sessions.last6hours')}</option>
+            <option value={1440}>{t('sessions.last24hours')}</option>
           </select>
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} className="rounded" />
-            Auto (10s)
+            {t('sessions.auto')}
           </label>
           <button onClick={load} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">
             🔄
@@ -121,19 +123,19 @@ export default function SessionsPage() {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div className="text-3xl font-bold text-white">{sessions.length}</div>
-          <div className="text-sm text-gray-400">Sesiones</div>
+          <div className="text-sm text-gray-400">{t('sessions.sessions')}</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div className="text-3xl font-bold text-white">{sessions.filter(s => isRecent(s.lastActivity)).length}</div>
-          <div className="text-sm text-gray-400">Activas ahora</div>
+          <div className="text-sm text-gray-400">{t('sessions.activeNow')}</div>
         </div>
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div className="text-3xl font-bold text-white">${totalCost.toFixed(4)}</div>
-          <div className="text-sm text-gray-400">Costo total</div>
+          <div className="text-sm text-gray-400">{t('sessions.totalCost')}</div>
         </div>
       </div>
 
-      {loading && sessions.length === 0 && <div className="text-gray-400">Cargando...</div>}
+      {loading && sessions.length === 0 && <div className="text-gray-400">{t('sessions.loading')}</div>}
 
       {/* Sessions grouped by agent */}
       {Object.entries(byAgent).map(([agentId, agentSessions]) => (
@@ -160,16 +162,16 @@ export default function SessionsPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm text-white">{s.id.slice(0, 12)}...</span>
                       {isRecent(s.lastActivity) && (
-                        <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded">activa</span>
+                        <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 rounded">{t('sessions.active')}</span>
                       )}
                     </div>
                     <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
-                      <span>📊 {s.messageCount} msgs</span>
+                      <span>📊 {s.messageCount} {t('sessions.msgs')}</span>
                       <span>📦 {(s.size / 1024).toFixed(0)}KB</span>
                       {s.lastModel && <span>🤖 {s.lastModel}</span>}
                       {s.totalCost > 0 && <span>💰 ${s.totalCost.toFixed(4)}</span>}
-                      <span>🕐 Inicio: {s.startedAt ? new Date(s.startedAt).toLocaleTimeString() : '?'}</span>
-                      <span>📡 Última: {timeSince(s.lastActivity)}</span>
+                      <span>🕐 {t('sessions.started')}: {s.startedAt ? new Date(s.startedAt).toLocaleTimeString() : '?'}</span>
+                      <span>📡 {t('sessions.last')}: {timeSince(s.lastActivity)}</span>
                     </div>
                   </div>
                 </div>
@@ -177,11 +179,11 @@ export default function SessionsPage() {
                 <div className="flex gap-2 flex-shrink-0 ml-4">
                   <a href={`/monitoring?agent=${s.agentId}&session=${s.id}`}
                     className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1">
-                    Ver logs
+                    {t('sessions.viewLogs')}
                   </a>
                   <button onClick={() => deleteSession(s.agentId, s.id)}
                     className="text-xs text-red-400 hover:text-red-300 px-2 py-1">
-                    Eliminar
+                    {t('sessions.delete')}
                   </button>
                 </div>
               </div>
@@ -192,7 +194,7 @@ export default function SessionsPage() {
 
       {sessions.length === 0 && !loading && (
         <div className="text-gray-500 text-center py-12">
-          No hay sesiones en los últimos {timeRange} minutos
+          {t('sessions.noSessions').replace('%d', String(timeRange))}
         </div>
       )}
     </div>

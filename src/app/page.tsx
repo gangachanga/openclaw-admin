@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 interface HealthCheck {
   name: string;
@@ -12,6 +13,7 @@ interface HealthCheck {
 
 export default function Dashboard() {
   const { connected, status, error, refreshStatus } = useAdmin();
+  const { t } = useI18n();
   const [health, setHealth] = useState<{ checks: HealthCheck[]; overall: string; timestamp: string } | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [activity, setActivity] = useState<{ timestamp: string; type: string; message: string }[]>([]);
@@ -72,36 +74,36 @@ export default function Dashboard() {
   };
 
   const overallLabel = (s: string) => {
-    if (s === 'ok') return { text: 'Todo operativo', color: 'text-green-400', bg: 'bg-green-900/30 border-green-800' };
-    if (s === 'warning') return { text: 'Advertencias', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-800' };
-    return { text: 'Hay errores', color: 'text-red-400', bg: 'bg-red-900/30 border-red-800' };
+    if (s === 'ok') return { text: t('home.operationalAll'), color: 'text-green-400', bg: 'bg-green-900/30 border-green-800' };
+    if (s === 'warning') return { text: t('home.warnings'), color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-800' };
+    return { text: t('home.hasErrors'), color: 'text-red-400', bg: 'bg-red-900/30 border-red-800' };
   };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">🦞 OpenClaw Admin</h1>
+        <h1 className="text-2xl font-bold text-white">🦞 {t('home.title')}</h1>
         <div className="flex gap-2">
           <button onClick={loadHealth} disabled={healthLoading}
             className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50">
-            {healthLoading ? '...' : '🔄 Health Check'}
+            {healthLoading ? '...' : `🔄 ${t('home.healthCheck')}`}
           </button>
           <button onClick={() => refreshStatus()}
             className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
-            Actualizar
+            {t('home.refresh')}
           </button>
         </div>
       </div>
 
       {error && (
         <div className="p-4 bg-red-900/50 border border-red-700 rounded-lg text-red-300 text-sm">
-          <strong>Error:</strong> {error}
+          <strong>{t('home.error')}:</strong> {error}
         </div>
       )}
 
       {!connected && !error && (
         <div className="p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
-          Conectando al servidor via SSH...
+          {t('home.connectingSSH')}
         </div>
       )}
 
@@ -117,7 +119,7 @@ export default function Dashboard() {
                 </span>
               </div>
               <span className="text-xs text-gray-500">
-                Último check: {health.timestamp ? new Date(health.timestamp).toLocaleTimeString() : '?'}
+                {t('home.lastCheck')}: {health.timestamp ? new Date(health.timestamp).toLocaleTimeString() : '?'}
               </span>
             </div>
           )}
@@ -146,41 +148,41 @@ export default function Dashboard() {
           {/* Gateway status */}
           {status && (
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <h2 className="text-lg font-semibold text-white mb-4">Estado del Gateway</h2>
+              <h2 className="text-lg font-semibold text-white mb-4">{t('home.gatewayStatus')}</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <p className="text-gray-400 text-xs">Estado</p>
+                  <p className="text-gray-400 text-xs">{t('home.state')}</p>
                   <p className={`font-medium ${status.state === 'running' || status.state === 'active' ? 'text-green-400' : 'text-yellow-400'}`}>
                     {status.state || 'unknown'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">Versión</p>
+                  <p className="text-gray-400 text-xs">{t('home.version')}</p>
                   <p className="text-white">{status.version || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">Uptime</p>
+                  <p className="text-gray-400 text-xs">{t('home.uptime')}</p>
                   <p className="text-white">{status.uptime || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">Modelo primario</p>
+                  <p className="text-gray-400 text-xs">{t('home.primaryModel')}</p>
                   <p className="text-white text-sm">{status.model || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">PID</p>
+                  <p className="text-gray-400 text-xs">{t('home.pid')}</p>
                   <p className="text-white">{status.pid || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">Memoria</p>
+                  <p className="text-gray-400 text-xs">{t('home.memory')}</p>
                   <p className="text-white">{status.memory || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">CPU</p>
+                  <p className="text-gray-400 text-xs">{t('home.cpu')}</p>
                   <p className="text-white">{status.cpu || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs">Red</p>
-                  <p className="text-white">{status.bind || '?'}:{status.port || '?'} · {status.agents || 0} agentes</p>
+                  <p className="text-gray-400 text-xs">{t('home.network')}</p>
+                  <p className="text-white">{status.bind || '?'}:{status.port || '?'} · {status.agents || 0} {t('home.agents')}</p>
                 </div>
               </div>
             </div>
@@ -189,12 +191,12 @@ export default function Dashboard() {
           {/* Activity Feed */}
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-white font-medium">📡 Actividad reciente</h2>
+              <h2 className="text-white font-medium">📡 {t('home.recentActivity')}</h2>
               <button onClick={loadActivity} className="text-xs text-gray-400 hover:text-white">🔄</button>
             </div>
             <div ref={activityRef} className="space-y-1 max-h-64 overflow-y-auto scrollbar-thin">
               {activity.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">Sin actividad reciente</p>
+                <p className="text-gray-500 text-sm text-center py-4">{t('home.noRecentActivity')}</p>
               ) : activity.map((evt, i) => {
                 const style = activityTypeStyle(evt.type);
                 return (
@@ -213,14 +215,14 @@ export default function Dashboard() {
           {/* Quick links */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { href: '/agents', icon: '🤖', label: 'Agentes', desc: 'Configurar agentes', color: 'blue' },
-              { href: '/sessions', icon: '⚡', label: 'Sesiones', desc: 'Sesiones activas', color: 'yellow' },
-              { href: '/costs', icon: '💰', label: 'Costos', desc: 'Dashboard de costos', color: 'green' },
-              { href: '/cron', icon: '⏰', label: 'Cron', desc: 'Jobs programados', color: 'purple' },
-              { href: '/knowledge', icon: '📚', label: 'Knowledge', desc: 'Archivos workspace', color: 'orange' },
-              { href: '/config', icon: '⚙️', label: 'Config', desc: 'Configuración', color: 'gray' },
-              { href: '/monitoring', icon: '📊', label: 'Logs', desc: 'Monitoreo y logs', color: 'pink' },
-              { href: '/terminal', icon: '🖥️', label: 'Terminal', desc: 'SSH terminal', color: 'red' },
+              { href: '/agents', icon: '🤖', label: t('sidebar.agents'), desc: t('home.configureAgents'), color: 'blue' },
+              { href: '/sessions', icon: '⚡', label: t('sidebar.sessions'), desc: t('home.activeSessions'), color: 'yellow' },
+              { href: '/costs', icon: '💰', label: t('sidebar.costs'), desc: t('home.costsDashboard'), color: 'green' },
+              { href: '/cron', icon: '⏰', label: t('sidebar.cron'), desc: t('home.scheduledJobs'), color: 'purple' },
+              { href: '/knowledge', icon: '📚', label: t('sidebar.knowledge'), desc: t('home.workspaceFiles'), color: 'orange' },
+              { href: '/config', icon: '⚙️', label: t('sidebar.config'), desc: t('home.configuration'), color: 'gray' },
+              { href: '/monitoring', icon: '📊', label: t('sidebar.monitoring'), desc: t('home.monitoringLogs'), color: 'pink' },
+              { href: '/terminal', icon: '🖥️', label: t('sidebar.terminal'), desc: t('home.sshTerminal'), color: 'red' },
             ].map(link => {
               const colors: Record<string, string> = {
                 blue: 'hover:bg-blue-600 hover:border-blue-500 hover:shadow-blue-500/20',
@@ -252,7 +254,7 @@ export default function Dashboard() {
           {status?.raw && (
             <details className="bg-gray-800 rounded-lg border border-gray-700">
               <summary className="p-4 text-white font-medium cursor-pointer hover:bg-gray-700/50">
-                📋 Status Raw
+                📋 {t('home.statusRaw')}
               </summary>
               <pre className="text-gray-300 text-sm whitespace-pre-wrap font-mono bg-gray-900 p-4 mx-4 mb-4 rounded">
                 {status.raw}

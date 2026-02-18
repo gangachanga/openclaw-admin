@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 import { OPENCLAW_TOOLS } from '@/lib/types';
 
 interface AgentForm {
@@ -29,6 +30,7 @@ interface ModelOption {
 
 export default function AgentsPage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentForm | null>(null);
@@ -70,7 +72,7 @@ export default function AgentsPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm(`¿Eliminar agente "${id}"?`)) return;
+    if (!confirm(t('agents.deleteConfirm').replace('%s', id))) return;
     try {
       await api.deleteAgent(id);
       load();
@@ -86,21 +88,21 @@ export default function AgentsPage() {
     setEditing({ ...editing, tools: { ...editing.tools, [list]: updated } });
   };
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('agents.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">🤖 Agentes</h1>
+        <h1 className="text-2xl font-bold text-white">🤖 {t('agents.title')}</h1>
         <button onClick={() => setEditing({ ...emptyForm })} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
-          + Nuevo Agente
+          + {t('agents.newAgent')}
         </button>
       </div>
 
       {error && <div className="p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">{error}</div>}
 
       {loading ? (
-        <div className="text-gray-400">Cargando...</div>
+        <div className="text-gray-400">{t('agents.loading')}</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {agents.map((agent: any) => (
@@ -118,20 +120,19 @@ export default function AgentsPage() {
                     <p className="text-gray-400 text-xs">{agent.id}</p>
                   </div>
                 </div>
-{/* status badge removed - openclaw doesn't support enabled field */}
               </div>
-              <p className="text-gray-400 text-sm mb-3">Modelo: {agent.model || 'default'}</p>
+              <p className="text-gray-400 text-sm mb-3">{t('agents.model')}: {agent.model || 'default'}</p>
               <div className="flex gap-2">
                 <button onClick={() => setEditing({ ...emptyForm, ...agent, tools: { allow: [], deny: [], ...agent.tools }, subagents: { allowAgents: [], ...agent.subagents }, sandbox: { mode: 'off', scope: 'session', ...agent.sandbox } })} className="text-xs text-blue-400 hover:text-blue-300">
-                  Editar
+                  {t('agents.edit')}
                 </button>
                 <button onClick={() => remove(agent.id)} className="text-xs text-red-400 hover:text-red-300">
-                  Eliminar
+                  {t('agents.delete')}
                 </button>
               </div>
             </div>
           ))}
-          {agents.length === 0 && <p className="text-gray-500 col-span-full">No hay agentes configurados</p>}
+          {agents.length === 0 && <p className="text-gray-500 col-span-full">{t('agents.noAgents')}</p>}
         </div>
       )}
 
@@ -139,26 +140,26 @@ export default function AgentsPage() {
       {editing && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto py-8">
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
-            <h2 className="text-lg font-semibold text-white mb-4">{editing.id ? 'Editar Agente' : 'Nuevo Agente'}</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">{editing.id ? t('agents.editAgent') : t('agents.newAgent')}</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-gray-400">ID</label>
+                  <label className="text-sm text-gray-400">{t('agents.id')}</label>
                   <input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Nombre</label>
+                  <label className="text-sm text-gray-400">{t('agents.name')}</label>
                   <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Modelo</label>
+                  <label className="text-sm text-gray-400">{t('agents.model')}</label>
                   <select value={editing.model || ''} onChange={e => {
                     console.log('Model selected:', e.target.value);
                     setEditing({ ...editing, model: e.target.value });
                   }} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
-                    <option value="">Sin override ({models.primaryModel || 'default del sistema'})</option>
+                    <option value="">{t('agents.noOverride')} ({models.primaryModel || t('agents.systemDefault')})</option>
                     {models.aliases.length > 0 && (
-                      <optgroup label="⚡ Aliases">
+                      <optgroup label={`⚡ ${t('agents.aliases')}`}>
                         {models.aliases.map(a => (
                           <option key={a.id} value={a.id}>{a.name} → {a.resolves}</option>
                         ))}
@@ -178,7 +179,7 @@ export default function AgentsPage() {
                       ));
                     })()}
                     {models.custom.length > 0 && (
-                      <optgroup label="🔧 Custom">
+                      <optgroup label={`🔧 ${t('agents.custom')}`}>
                         {models.custom.map(m => (
                           <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
                         ))}
@@ -187,13 +188,13 @@ export default function AgentsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Workspace</label>
+                  <label className="text-sm text-gray-400">{t('agents.workspace')}</label>
                   <input value={editing.workspace} onChange={e => setEditing({ ...editing, workspace: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
                 </div>
               </div>
 
               <div>
-                <label className="text-sm text-gray-400">Tools Allow</label>
+                <label className="text-sm text-gray-400">{t('agents.toolsAllow')}</label>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {OPENCLAW_TOOLS.map(tool => (
                     <button key={tool} onClick={() => toggleTool('allow', tool)}
@@ -205,7 +206,7 @@ export default function AgentsPage() {
               </div>
 
               <div>
-                <label className="text-sm text-gray-400">Tools Deny</label>
+                <label className="text-sm text-gray-400">{t('agents.toolsDeny')}</label>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {OPENCLAW_TOOLS.map(tool => (
                     <button key={tool} onClick={() => toggleTool('deny', tool)}
@@ -217,7 +218,7 @@ export default function AgentsPage() {
               </div>
 
               <div>
-                <label className="text-sm text-gray-400">Sandbox Mode</label>
+                <label className="text-sm text-gray-400">{t('agents.sandboxMode')}</label>
                 <select value={editing.sandbox.mode} onChange={e => setEditing({ ...editing, sandbox: { ...editing.sandbox, mode: e.target.value } })}
                   className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
                   <option value="off">Off</option>
@@ -228,8 +229,8 @@ export default function AgentsPage() {
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setEditing(null)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
-              <button onClick={save} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">Guardar</button>
+              <button onClick={() => setEditing(null)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">{t('agents.cancel')}</button>
+              <button onClick={save} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">{t('agents.save')}</button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 interface Message {
   id: number;
@@ -19,6 +20,7 @@ interface Agent {
 
 export default function ChatPage() {
   const { connected } = useAdmin();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,14 +94,14 @@ export default function ChatPage() {
 
   const agentName = agents.find(a => a.id === selectedAgent)?.name || selectedAgent;
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('chat.waitingSSH')}</div>;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/50">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-white">💬 Chat</h1>
+          <h1 className="text-xl font-bold text-white">💬 {t('chat.title')}</h1>
           <select
             value={selectedAgent}
             onChange={e => { setSelectedAgent(e.target.value); setMessages([]); }}
@@ -115,7 +117,7 @@ export default function ChatPage() {
             onClick={() => setMessages([])}
             className="text-xs text-gray-400 hover:text-white px-2 py-1"
           >
-            Limpiar chat
+            {t('chat.clearChat')}
           </button>
         )}
       </div>
@@ -125,8 +127,8 @@ export default function ChatPage() {
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <div className="text-6xl mb-4">💬</div>
-            <p className="text-lg">Enviá un mensaje a <span className="text-orange-400">{agentName}</span></p>
-            <p className="text-sm mt-1">Cada mensaje es independiente (sin contexto de sesión)</p>
+            <p className="text-lg">{t('chat.sendMessage')} <span className="text-orange-400">{agentName}</span></p>
+            <p className="text-sm mt-1">{t('chat.independentMessage')}</p>
           </div>
         )}
 
@@ -161,7 +163,7 @@ export default function ChatPage() {
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <span className="text-xs text-gray-400">{agentName} está pensando...</span>
+                <span className="text-xs text-gray-400">{agentName} {t('chat.thinking')}</span>
               </div>
             </div>
           </div>
@@ -185,7 +187,7 @@ export default function ChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder={`Mensaje para ${agentName}...`}
+            placeholder={`${t('chat.sendMessage')} ${agentName}...`}
             disabled={sending}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white text-sm
               placeholder-gray-500 focus:outline-none focus:border-orange-500 disabled:opacity-50"
@@ -196,7 +198,7 @@ export default function ChatPage() {
             className="px-5 py-3 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-700 disabled:text-gray-500
               text-white rounded-xl text-sm font-medium transition-colors"
           >
-            {sending ? '...' : 'Enviar'}
+            {sending ? '...' : t('chat.send')}
           </button>
         </div>
       </div>

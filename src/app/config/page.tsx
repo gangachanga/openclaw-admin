@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 // Editable field component
 function Field({ label, value, onChange, type = 'text', options, placeholder, mono, rows }: {
@@ -68,6 +69,7 @@ function Section({ title, icon, children, defaultOpen = false }: {
 
 export default function ConfigPage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [config, setConfig] = useState<any>(null);
   const [raw, setRaw] = useState('');
   const [tab, setTab] = useState<'visual' | 'raw'>('visual');
@@ -135,7 +137,7 @@ export default function ConfigPage() {
       } else {
         await api.setConfig(config);
       }
-      setSuccess('✅ Configuración guardada y Gateway reiniciado');
+      setSuccess(t('config.configSaved'));
       setTimeout(() => setSuccess(''), 5000);
       load();
     } catch (e: any) {
@@ -167,21 +169,21 @@ export default function ConfigPage() {
     reader.readAsText(file);
   };
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('config.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">⚙️ Configuración</h1>
+        <h1 className="text-2xl font-bold text-white">⚙️ {t('config.title')}</h1>
         <div className="flex gap-2">
-          <button onClick={backup} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">📦 Backup</button>
+          <button onClick={backup} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">📦 {t('config.backup')}</button>
           <label className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm cursor-pointer">
-            📂 Restaurar
+            📂 {t('config.restore')}
             <input type="file" accept=".json" onChange={restore} className="hidden" />
           </label>
           <button onClick={saveConfig} disabled={saving}
             className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm disabled:opacity-50">
-            {saving ? 'Guardando...' : '💾 Guardar y reiniciar'}
+            {saving ? t('config.saving') : `💾 ${t('config.saveAndRestart')}`}
           </button>
         </div>
       </div>
@@ -190,12 +192,12 @@ export default function ConfigPage() {
       {success && <div className="p-3 bg-green-900/50 border border-green-700 rounded text-green-300 text-sm">{success}</div>}
 
       <div className="flex gap-2 border-b border-gray-700 pb-2">
-        <button onClick={() => setTab('visual')} className={`px-3 py-1.5 rounded text-sm ${tab === 'visual' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'}`}>🎨 Visual</button>
-        <button onClick={() => { setTab('raw'); setRaw(JSON.stringify(config, null, 2)); }} className={`px-3 py-1.5 rounded text-sm ${tab === 'raw' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'}`}>📝 JSON</button>
+        <button onClick={() => setTab('visual')} className={`px-3 py-1.5 rounded text-sm ${tab === 'visual' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'}`}>🎨 {t('config.visual')}</button>
+        <button onClick={() => { setTab('raw'); setRaw(JSON.stringify(config, null, 2)); }} className={`px-3 py-1.5 rounded text-sm ${tab === 'raw' ? 'bg-orange-600 text-white' : 'text-gray-400 hover:text-white'}`}>📝 {t('config.json')}</button>
       </div>
 
       {loading ? (
-        <div className="text-gray-400">Cargando configuración...</div>
+        <div className="text-gray-400">{t('config.loading')}</div>
       ) : tab === 'raw' ? (
         <textarea value={raw} onChange={e => { setRaw(e.target.value); try { setConfig(JSON.parse(e.target.value)); } catch {} }}
           className="w-full h-[70vh] bg-gray-900 border border-gray-700 rounded-lg p-4 text-gray-300 font-mono text-sm resize-none" />
@@ -239,7 +241,7 @@ export default function ConfigPage() {
                 <button onClick={() => {
                   const fbs = [...get('agents.defaults.model.fallbacks', []), ''];
                   update('agents.defaults.model.fallbacks', fbs);
-                }} className="text-xs text-orange-400 hover:text-orange-300">+ Agregar fallback</button>
+                }} className="text-xs text-orange-400 hover:text-orange-300">+ {t('config.addFallback')}</button>
               </div>
             </div>
           </Section>
@@ -247,7 +249,7 @@ export default function ConfigPage() {
           {/* Bindings - MUST BE FIRST! */}
           <Section title="Bindings (Canal → Agente)" icon="🔗" defaultOpen>
             <div className="p-3 bg-blue-900/30 border border-blue-700 rounded text-blue-300 text-xs mb-3">
-              📌 Crea bindings aquí primero. Estos agentes aparecerán en Telegram/WhatsApp más abajo.
+              📌 {t('config.bindingsHint')}
             </div>
             <div className="space-y-3">
               {(get('bindings', []) as any[]).map((binding, i) => (
@@ -299,7 +301,7 @@ export default function ConfigPage() {
                 bindings.push({ agentId: agents[0] || 'main', match: { channel: 'telegram' } });
                 update('bindings', bindings);
               }} className="w-full py-2 border border-dashed border-gray-600 rounded text-sm text-orange-400 hover:text-orange-300 hover:border-gray-500">
-                + Agregar binding
+                + {t('config.addBinding')}
               </button>
             </div>
           </Section>
@@ -316,10 +318,10 @@ export default function ConfigPage() {
               {Object.entries(get('channels.telegram.accounts', {}) as Record<string, any>).map(([name, acc]) => (
                 <details key={name} className="mt-2 bg-gray-900 rounded p-3">
                   <summary className="text-sm text-white cursor-pointer flex items-center justify-between">
-                    <span>{name} {acc.enabled === false ? '(desactivada)' : ''}</span>
+                    <span>{name} {acc.enabled === false ? `(${t('config.disabled')})` : ''}</span>
                     <button onClick={(e) => {
                       e.preventDefault();
-                      if (!confirm(`¿Eliminar la cuenta "${name}"?`)) return;
+                      if (!confirm(t('config.deleteConfirm').replace('%s', name))) return;
                       const accounts = { ...get('channels.telegram.accounts', {}) };
                       delete accounts[name];
                       update('channels.telegram.accounts', accounts);
@@ -370,7 +372,7 @@ export default function ConfigPage() {
                   <div className="flex gap-2">
                     <button onClick={() => {
                       if (!newTelegramAccount.name || !newTelegramAccount.botToken) {
-                        setError('Nombre y Bot Token son requeridos');
+                        setError(t('config.nameAndTokenRequired'));
                         return;
                       }
                       const accounts = { ...get('channels.telegram.accounts', {}) };
@@ -398,7 +400,7 @@ export default function ConfigPage() {
               ) : (
                 <button onClick={() => setShowAddTelegramAccount(true)}
                   className="mt-2 w-full py-2 border border-dashed border-orange-500 rounded text-sm text-orange-400 hover:text-orange-300 hover:border-orange-400">
-                  + Agregar cuenta de Telegram
+                  + {t('config.addTelegramAccount')}
                 </button>
               )}
             </div>
@@ -429,14 +431,14 @@ export default function ConfigPage() {
           <Section title="Proveedores custom" icon="🔧">
             {Object.entries(get('models.providers', {}) as Record<string, any>).map(([name, prov]) => (
               <details key={name} className="bg-gray-900 rounded p-3">
-                <summary className="text-sm text-white cursor-pointer">{name} ({prov.models?.length || 0} modelos)</summary>
+                <summary className="text-sm text-white cursor-pointer">{name} ({prov.models?.length || 0} {t('config.models')})</summary>
                 <div className="mt-2 space-y-2">
                   <Field label="Base URL" value={prov.baseUrl} onChange={v => update(`models.providers.${name}.baseUrl`, v)} mono />
                   <Field label="API Key" value={prov.apiKey} onChange={v => update(`models.providers.${name}.apiKey`, v)} mono />
                   <Field label="API Type" value={prov.api} onChange={v => update(`models.providers.${name}.api`, v)} type="select"
                     options={[{ value: 'openai-completions', label: 'OpenAI Completions' }, { value: 'anthropic', label: 'Anthropic' }]} />
                   <div className="text-xs text-gray-500">
-                    Modelos: {prov.models?.map((m: any) => m.name || m.id).join(', ') || 'ninguno'}
+                    {t('config.models')}: {prov.models?.map((m: any) => m.name || m.id).join(', ') || t('config.none')}
                   </div>
                 </div>
               </details>
@@ -458,7 +460,7 @@ export default function ConfigPage() {
           </Section>
         </div>
       ) : (
-        <div className="text-gray-400">No se pudo parsear la configuración.</div>
+        <div className="text-gray-400">{t('config.couldNotParse')}</div>
       )}
     </div>
   );

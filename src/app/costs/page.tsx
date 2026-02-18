@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell
@@ -57,6 +58,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function CostsPage() {
   const { connected } = useAdmin();
+  const { t } = useI18n();
   const [data, setData] = useState<CostData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -82,20 +84,20 @@ export default function CostsPage() {
   const avgDaily = data && data.daily.length > 0 ? data.total / data.daily.length : 0;
   const projected = avgDaily * 30;
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('costs.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">💰 Costos</h1>
+        <h1 className="text-2xl font-bold text-white">💰 {t('costs.title')}</h1>
         <div className="flex items-center gap-3">
           <select value={days} onChange={e => setDays(parseInt(e.target.value))}
             className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm">
-            <option value={1}>Hoy</option>
-            <option value={3}>3 días</option>
-            <option value={7}>7 días</option>
-            <option value={14}>14 días</option>
-            <option value={30}>30 días</option>
+            <option value={1}>{t('costs.today')}</option>
+            <option value={3}>{t('costs.3days')}</option>
+            <option value={7}>{t('costs.7days')}</option>
+            <option value={14}>{t('costs.14days')}</option>
+            <option value={30}>{t('costs.30days')}</option>
           </select>
           <button onClick={load} disabled={loading} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">
             {loading ? '...' : '🔄'}
@@ -104,7 +106,7 @@ export default function CostsPage() {
       </div>
 
       {error && <div className="p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">{error}</div>}
-      {loading && !data && <div className="text-gray-400">Calculando costos (puede tardar unos segundos)...</div>}
+      {loading && !data && <div className="text-gray-400">{t('costs.calculatingCosts')}</div>}
 
       {data && (
         <>
@@ -112,25 +114,25 @@ export default function CostsPage() {
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <div className="text-3xl font-bold text-white">${data.total.toFixed(2)}</div>
-              <div className="text-sm text-gray-400">Total ({days}d)</div>
+              <div className="text-sm text-gray-400">{t('costs.total')} ({days}d)</div>
             </div>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <div className="text-3xl font-bold text-blue-400">${avgDaily.toFixed(2)}</div>
-              <div className="text-sm text-gray-400">Promedio/día</div>
+              <div className="text-sm text-gray-400">{t('costs.avgPerDay')}</div>
             </div>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <div className="text-3xl font-bold text-orange-400">${projected.toFixed(0)}</div>
-              <div className="text-sm text-gray-400">Proyección mensual</div>
+              <div className="text-sm text-gray-400">{t('costs.monthlyProjection')}</div>
             </div>
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
               <div className="text-3xl font-bold text-green-400">{data.byModel.reduce((s, m) => s + m.calls, 0).toLocaleString()}</div>
-              <div className="text-sm text-gray-400">Llamadas API</div>
+              <div className="text-sm text-gray-400">{t('costs.apiCalls')}</div>
             </div>
           </div>
 
           {/* Daily cost area chart */}
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-            <h2 className="text-white font-medium mb-4">📊 Costo por día</h2>
+            <h2 className="text-white font-medium mb-4">📊 {t('costs.costPerDay')}</h2>
             {data.daily.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={data.daily.map(d => ({ ...d, label: d.date.slice(5) }))}>
@@ -149,14 +151,14 @@ export default function CostsPage() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="text-gray-500 text-sm text-center py-12">Sin datos</div>
+              <div className="text-gray-500 text-sm text-center py-12">{t('costs.noData')}</div>
             )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Cost by model - horizontal bar chart */}
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-              <h2 className="text-white font-medium mb-4">🧠 Por modelo</h2>
+              <h2 className="text-white font-medium mb-4">🧠 {t('costs.byModel')}</h2>
               {data.byModel.length > 0 ? (
                 <ResponsiveContainer width="100%" height={Math.max(200, data.byModel.length * 45)}>
                   <BarChart data={data.byModel.map(m => ({
@@ -175,13 +177,13 @@ export default function CostsPage() {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="text-gray-500 text-sm text-center py-8">Sin datos</div>
+                <div className="text-gray-500 text-sm text-center py-8">{t('costs.noData')}</div>
               )}
             </div>
 
             {/* Cost by agent */}
             <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-              <h2 className="text-white font-medium mb-4">🤖 Por agente</h2>
+              <h2 className="text-white font-medium mb-4">🤖 {t('costs.byAgent')}</h2>
               <div className="space-y-3">
                 {data.agents.filter(a => a.total > 0).sort((a, b) => b.total - a.total).map(agent => {
                   const pct = data.total > 0 ? (agent.total / data.total) * 100 : 0;
@@ -203,7 +205,7 @@ export default function CostsPage() {
                   );
                 })}
                 {data.agents.filter(a => a.total > 0).length === 0 && (
-                  <div className="text-gray-500 text-sm text-center py-8">Sin datos</div>
+                  <div className="text-gray-500 text-sm text-center py-8">{t('costs.noData')}</div>
                 )}
               </div>
             </div>

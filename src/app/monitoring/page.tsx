@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 interface SessionInfo {
   id: string;
@@ -32,6 +33,7 @@ interface LogEntry {
 
 export default function MonitoringPage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('main');
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -116,16 +118,16 @@ export default function MonitoringPage() {
     try {
       setLoading(true);
       const data = await api.runDoctor();
-      setDoctorOutput(data.output || 'Sin salida');
+      setDoctorOutput(data.output || t('monitoring.noOutput'));
     } catch (e: any) {
-      setDoctorOutput(`Error: ${e.message}`);
+      setDoctorOutput(`${t('common.error')}: ${e.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   const restartGateway = async () => {
-    if (!confirm('¿Reiniciar el Gateway?')) return;
+    if (!confirm(t('monitoring.restartConfirm'))) return;
     try {
       await api.restartGateway();
     } catch (e: any) {
@@ -179,12 +181,12 @@ export default function MonitoringPage() {
 
   const roleLabel = (role?: string) => {
     switch (role) {
-      case 'user': return '👤 User';
-      case 'assistant': return '🤖 Assistant';
-      case 'toolResult': return '🔧 Tool Result';
-      case 'toolCall': return '⚡ Tool Call';
-      case 'system': return '⚙️ System';
-      default: return role || 'unknown';
+      case 'user': return `👤 ${t('monitoring.user')}`;
+      case 'assistant': return `🤖 ${t('monitoring.assistant')}`;
+      case 'toolResult': return `🔧 ${t('monitoring.toolResult')}`;
+      case 'toolCall': return `⚡ ${t('monitoring.toolCall')}`;
+      case 'system': return `⚙️ ${t('monitoring.system')}`;
+      default: return role || t('monitoring.unknown');
     }
   };
 
@@ -205,20 +207,20 @@ export default function MonitoringPage() {
     .filter(e => e.message?.usage?.totalTokens)
     .reduce((sum, e) => sum + (e.message!.usage!.totalTokens || 0), 0);
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('monitoring.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">📊 Monitoreo</h1>
+        <h1 className="text-2xl font-bold text-white">📊 {t('monitoring.title')}</h1>
         <div className="flex gap-2">
           <button onClick={runDoctor} disabled={loading}
             className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm disabled:opacity-50">
-            🩺 Doctor
+            🩺 {t('monitoring.doctor')}
           </button>
           <button onClick={restartGateway}
             className="px-3 py-2 bg-red-700 hover:bg-red-600 text-white rounded text-sm">
-            🔄 Reiniciar Gateway
+            🔄 {t('monitoring.restartGateway')}
           </button>
         </div>
       </div>
@@ -228,7 +230,7 @@ export default function MonitoringPage() {
       {doctorOutput && (
         <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
           <div className="flex justify-between items-center mb-2">
-            <h2 className="text-white font-medium">🩺 Doctor</h2>
+            <h2 className="text-white font-medium">🩺 {t('monitoring.doctor')}</h2>
             <button onClick={() => setDoctorOutput('')} className="text-gray-500 hover:text-gray-300 text-sm">✕</button>
           </div>
           <pre className="text-gray-300 text-sm font-mono whitespace-pre-wrap bg-gray-900 p-3 rounded max-h-60 overflow-y-auto">{doctorOutput}</pre>
@@ -257,8 +259,8 @@ export default function MonitoringPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Sessions list */}
         <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase">Sesiones recientes</h2>
-          {loading && !selectedSession && <div className="text-gray-500 text-sm">Cargando...</div>}
+          <h2 className="text-sm font-semibold text-gray-400 uppercase">{t('monitoring.recentSessions')}</h2>
+          {loading && !selectedSession && <div className="text-gray-500 text-sm">{t('monitoring.loading')}</div>}
           {sessions.map((s) => (
             <button
               key={s.id}
@@ -277,7 +279,7 @@ export default function MonitoringPage() {
             </button>
           ))}
           {sessions.length === 0 && !loading && (
-            <p className="text-gray-500 text-sm">Sin sesiones</p>
+            <p className="text-gray-500 text-sm">{t('monitoring.noSessions')}</p>
           )}
         </div>
 
@@ -299,7 +301,7 @@ export default function MonitoringPage() {
                   {(['all', 'user', 'assistant', 'tool'] as const).map(f => (
                     <button key={f} onClick={() => setFilter(f)}
                       className={`text-xs px-2 py-1 rounded ${filter === f ? 'bg-orange-600/30 text-orange-400' : 'text-gray-500 hover:text-gray-300'}`}>
-                      {f === 'all' ? 'Todo' : f === 'user' ? '👤' : f === 'assistant' ? '🤖' : '🔧'}
+                      {f === 'all' ? t('monitoring.all') : f === 'user' ? '👤' : f === 'assistant' ? '🤖' : '🔧'}
                     </button>
                   ))}
                   {/* Stream toggle */}
@@ -307,16 +309,16 @@ export default function MonitoringPage() {
                     onClick={() => streaming ? stopStreaming() : startStreaming(selectedSession)}
                     className={`text-xs px-3 py-1 rounded ${streaming ? 'bg-green-700 text-green-200' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
                   >
-                    {streaming ? '⏸ Pausar' : '▶ En vivo'}
+                    {streaming ? `⏸ ${t('monitoring.pause')}` : `▶ ${t('monitoring.live')}`}
                   </button>
                 </div>
               </div>
 
               <div className="bg-gray-900 border border-gray-700 rounded-lg h-[60vh] overflow-y-auto p-4 space-y-2">
                 {loading ? (
-                  <div className="text-gray-500 text-center py-8">Cargando logs...</div>
+                  <div className="text-gray-500 text-center py-8">{t('monitoring.loadingLogs')}</div>
                 ) : filteredEntries.length === 0 ? (
-                  <div className="text-gray-500 text-center py-8">Sin entradas</div>
+                  <div className="text-gray-500 text-center py-8">{t('monitoring.noEntries')}</div>
                 ) : (
                   filteredEntries.map((entry, i) => {
                     const role = entry.message?.role;
@@ -349,7 +351,7 @@ export default function MonitoringPage() {
             </div>
           ) : (
             <div className="text-gray-500 text-center py-20">
-              Seleccioná una sesión para ver los logs
+              {t('monitoring.selectSession')}
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 // Standard OpenClaw workspace files
 const OPENCLAW_FILES = [
@@ -23,6 +24,7 @@ interface FileItem {
 
 export default function KnowledgePage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('main');
   const [view, setView] = useState<'root' | 'memory'>('root');
@@ -93,7 +95,7 @@ export default function KnowledgePage() {
       setSaving(true);
       setError('');
       await api.writeWorkspaceFile(selectedFile, content, selectedAgent, view === 'memory' ? 'memory' : undefined);
-      setSuccess(`${selectedFile} guardado`);
+      setSuccess(t('knowledge.saved').replace('%s', selectedFile));
       setTimeout(() => setSuccess(''), 3000);
     } catch (e: any) {
       setError(e.message);
@@ -104,12 +106,12 @@ export default function KnowledgePage() {
 
   const agentName = agents.find(a => a.id === selectedAgent)?.name || selectedAgent;
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('knowledge.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">📚 Knowledge Base</h1>
+        <h1 className="text-2xl font-bold text-white">📚 {t('knowledge.title')}</h1>
 
         {/* Agent selector */}
         <div className="flex items-center gap-3">
@@ -144,7 +146,7 @@ export default function KnowledgePage() {
           {view === 'root' ? (
             <>
               <h2 className="text-sm font-semibold text-gray-400 uppercase">
-                Workspace Files
+                {t('knowledge.workspaceFiles')}
               </h2>
               {OPENCLAW_FILES.map((filename) => (
                 <button 
@@ -176,13 +178,13 @@ export default function KnowledgePage() {
                   onClick={() => { setView('root'); setSelectedFile(''); setContent(''); }}
                   className="text-sm text-blue-400 hover:text-blue-300 px-2 py-1 rounded hover:bg-gray-800"
                 >
-                  ← Volver
+                  ← {t('knowledge.back')}
                 </button>
               </div>
               <h2 className="text-sm font-semibold text-blue-400 uppercase">
                 📁 memory/
               </h2>
-              {memoryFiles.length === 0 && <div className="text-gray-500 text-sm px-3">No hay archivos</div>}
+              {memoryFiles.length === 0 && <div className="text-gray-500 text-sm px-3">{t('knowledge.noFiles')}</div>}
               {memoryFiles.map((file) => (
                 <button 
                   key={file.name} 
@@ -214,11 +216,11 @@ export default function KnowledgePage() {
                 <button onClick={saveFile} disabled={saving}
                   className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm disabled:opacity-50"
                 >
-                  {saving ? 'Guardando...' : 'Guardar'}
+                  {saving ? t('knowledge.saving') : t('knowledge.save')}
                 </button>
               </div>
               {loading ? (
-                <div className="text-gray-400">Cargando...</div>
+                <div className="text-gray-400">{t('knowledge.loading')}</div>
               ) : (
                 <textarea 
                   value={content} 
@@ -229,7 +231,7 @@ export default function KnowledgePage() {
             </div>
           ) : (
             <div className="text-gray-500 text-center py-20">
-              Seleccioná un archivo para editar
+              {t('knowledge.selectFile')}
             </div>
           )}
         </div>

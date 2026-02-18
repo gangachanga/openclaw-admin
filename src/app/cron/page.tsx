@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 export default function CronPage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any>(null);
@@ -32,11 +34,11 @@ export default function CronPage() {
 
   const run = async (jobId: string, jobName: string) => {
     try {
-      setSuccess(`Ejecutando "${jobName}"...`);
+      setSuccess(t('cron.executing').replace('%s', jobName));
       const result = await api.runCronJob(jobId);
-      setRunOutput(result.output || 'Ejecutado');
+      setRunOutput(result.output || t('cron.executed').replace('%s', jobName));
       setViewingRuns(jobId);
-      setSuccess(`"${jobName}" ejecutado`);
+      setSuccess(t('cron.executed').replace('%s', jobName));
       setTimeout(() => setSuccess(''), 3000);
       load();
     } catch (e: any) {
@@ -54,7 +56,7 @@ export default function CronPage() {
   };
 
   const remove = async (jobId: string, name: string) => {
-    if (!confirm(`¿Eliminar "${name}"?`)) return;
+    if (!confirm(t('cron.deleteConfirm').replace('%s', name))) return;
     try {
       await api.deleteCronJob(jobId);
       load();
@@ -73,7 +75,7 @@ export default function CronPage() {
         await api.updateCronJob(editing);
       }
       setEditing(null);
-      setSuccess('Guardado');
+      setSuccess(t('cron.saved'));
       setTimeout(() => setSuccess(''), 3000);
       load();
     } catch (e: any) {
@@ -82,31 +84,31 @@ export default function CronPage() {
   };
 
   const timeSince = (ms: number) => {
-    if (!ms) return 'nunca';
+    if (!ms) return t('cron.never');
     const diff = Date.now() - ms;
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'ahora';
-    if (mins < 60) return `hace ${mins}m`;
+    if (mins < 1) return t('cron.now');
+    if (mins < 60) return `${t('cron.ago')} ${mins}m`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `hace ${hrs}h`;
-    return `hace ${Math.floor(hrs / 24)}d`;
+    if (hrs < 24) return `${t('cron.ago')} ${hrs}h`;
+    return `${t('cron.ago')} ${Math.floor(hrs / 24)}d`;
   };
 
   const timeUntil = (ms: number) => {
     if (!ms) return '';
     const diff = ms - Date.now();
-    if (diff < 0) return 'pendiente';
+    if (diff < 0) return t('cron.pending');
     const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `en ${mins}m`;
+    if (mins < 60) return `${t('cron.in')} ${mins}m`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `en ${hrs}h ${mins % 60}m`;
-    return `en ${Math.floor(hrs / 24)}d`;
+    if (hrs < 24) return `${t('cron.in')} ${hrs}h ${mins % 60}m`;
+    return `${t('cron.in')} ${Math.floor(hrs / 24)}d`;
   };
 
   const statusBadge = (state: any, enabled: boolean) => {
-    if (!enabled) return { color: 'bg-gray-700 text-gray-400', label: 'Inactivo' };
-    if (!state?.lastStatus) return { color: 'bg-blue-900 text-blue-300', label: 'Sin ejecutar' };
-    if (state.consecutiveErrors > 0) return { color: 'bg-red-900 text-red-300', label: `Error (${state.consecutiveErrors}x)` };
+    if (!enabled) return { color: 'bg-gray-700 text-gray-400', label: t('cron.inactive') };
+    if (!state?.lastStatus) return { color: 'bg-blue-900 text-blue-300', label: t('cron.notExecuted') };
+    if (state.consecutiveErrors > 0) return { color: 'bg-red-900 text-red-300', label: `${t('cron.error')} (${state.consecutiveErrors}x)` };
     if (state.lastStatus === 'ok') return { color: 'bg-green-900 text-green-300', label: 'OK' };
     return { color: 'bg-yellow-900 text-yellow-300', label: state.lastStatus };
   };
@@ -116,11 +118,11 @@ export default function CronPage() {
     if (schedule.kind === 'cron') return `${schedule.expr}${schedule.tz ? ` (${schedule.tz})` : ''}`;
     if (schedule.kind === 'every') {
       const ms = schedule.everyMs;
-      if (ms >= 3600000) return `cada ${ms / 3600000}h`;
-      if (ms >= 60000) return `cada ${ms / 60000}m`;
-      return `cada ${ms / 1000}s`;
+      if (ms >= 3600000) return `${t('cron.every')} ${ms / 3600000}h`;
+      if (ms >= 60000) return `${t('cron.every')} ${ms / 60000}m`;
+      return `${t('cron.every')} ${ms / 1000}s`;
     }
-    if (schedule.kind === 'at') return `una vez: ${new Date(schedule.at).toLocaleString()}`;
+    if (schedule.kind === 'at') return `${t('cron.once')}: ${new Date(schedule.at).toLocaleString()}`;
     return JSON.stringify(schedule);
   };
 
@@ -135,12 +137,12 @@ export default function CronPage() {
   const activeCount = jobs.filter(j => j.enabled).length;
   const errorCount = jobs.filter(j => j.state?.consecutiveErrors > 0).length;
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('cron.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">⏰ Cron Jobs</h1>
+        <h1 className="text-2xl font-bold text-white">⏰ {t('cron.title')}</h1>
         <div className="flex gap-2">
           <button onClick={load} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">🔄</button>
           <button onClick={() => setEditing({
@@ -151,7 +153,7 @@ export default function CronPage() {
             delivery: { mode: 'none' },
           })}
             className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
-            + Nuevo Job
+            + {t('cron.newJob')}
           </button>
         </div>
       </div>
@@ -163,24 +165,24 @@ export default function CronPage() {
       <div className="grid grid-cols-4 gap-4">
         <button onClick={() => setFilter('all')} className={`bg-gray-800 border rounded-lg p-3 text-left ${filter === 'all' ? 'border-orange-500' : 'border-gray-700'}`}>
           <div className="text-2xl font-bold text-white">{jobs.length}</div>
-          <div className="text-xs text-gray-400">Total</div>
+          <div className="text-xs text-gray-400">{t('cron.total')}</div>
         </button>
         <button onClick={() => setFilter('active')} className={`bg-gray-800 border rounded-lg p-3 text-left ${filter === 'active' ? 'border-orange-500' : 'border-gray-700'}`}>
           <div className="text-2xl font-bold text-green-400">{activeCount}</div>
-          <div className="text-xs text-gray-400">Activos</div>
+          <div className="text-xs text-gray-400">{t('cron.active')}</div>
         </button>
         <button onClick={() => setFilter('inactive')} className={`bg-gray-800 border rounded-lg p-3 text-left ${filter === 'inactive' ? 'border-orange-500' : 'border-gray-700'}`}>
           <div className="text-2xl font-bold text-gray-400">{jobs.length - activeCount}</div>
-          <div className="text-xs text-gray-400">Inactivos</div>
+          <div className="text-xs text-gray-400">{t('cron.inactive')}</div>
         </button>
         <button onClick={() => setFilter('errors')} className={`bg-gray-800 border rounded-lg p-3 text-left ${filter === 'errors' ? 'border-orange-500' : 'border-gray-700'}`}>
           <div className="text-2xl font-bold text-red-400">{errorCount}</div>
-          <div className="text-xs text-gray-400">Con errores</div>
+          <div className="text-xs text-gray-400">{t('cron.withErrors')}</div>
         </button>
       </div>
 
       {loading ? (
-        <div className="text-gray-400">Cargando...</div>
+        <div className="text-gray-400">{t('cron.loading')}</div>
       ) : (
         <div className="space-y-3">
           {filtered.map((job: any) => {
@@ -214,13 +216,13 @@ export default function CronPage() {
                     {job.state && (
                       <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
                         {job.state.lastRunAtMs > 0 && (
-                          <span>🕐 Última: {timeSince(job.state.lastRunAtMs)}</span>
+                          <span>🕐 {t('cron.lastExecution')}: {timeSince(job.state.lastRunAtMs)}</span>
                         )}
                         {job.state.lastDurationMs > 0 && (
                           <span>⏱ {(job.state.lastDurationMs / 1000).toFixed(1)}s</span>
                         )}
                         {job.state.nextRunAtMs > 0 && job.enabled && (
-                          <span>⏭ Próxima: {timeUntil(job.state.nextRunAtMs)}</span>
+                          <span>⏭ {t('cron.nextExecution')}: {timeUntil(job.state.nextRunAtMs)}</span>
                         )}
                       </div>
                     )}
@@ -244,19 +246,19 @@ export default function CronPage() {
 
                 {/* Actions */}
                 <div className="flex gap-3 mt-3 pt-2 border-t border-gray-700/50">
-                  <button onClick={() => run(job.id, job.name || job.id)} className="text-xs text-orange-400 hover:text-orange-300">▶ Ejecutar</button>
+                  <button onClick={() => run(job.id, job.name || job.id)} className="text-xs text-orange-400 hover:text-orange-300">▶ {t('cron.execute')}</button>
                   <button onClick={() => toggle(job.id)} className="text-xs text-blue-400 hover:text-blue-300">
-                    {job.enabled ? '⏸ Pausar' : '▶ Activar'}
+                    {job.enabled ? `⏸ ${t('cron.pause')}` : `▶ ${t('cron.activate')}`}
                   </button>
-                  <button onClick={() => setEditing({ ...job })} className="text-xs text-blue-400 hover:text-blue-300">✏️ Editar</button>
-                  <button onClick={() => remove(job.id, job.name || job.id)} className="text-xs text-red-400 hover:text-red-300">🗑 Eliminar</button>
+                  <button onClick={() => setEditing({ ...job })} className="text-xs text-blue-400 hover:text-blue-300">✏️ {t('cron.edit')}</button>
+                  <button onClick={() => remove(job.id, job.name || job.id)} className="text-xs text-red-400 hover:text-red-300">🗑 {t('cron.delete')}</button>
                 </div>
 
                 {/* Run output */}
                 {viewingRuns === job.id && runOutput && (
                   <div className="mt-3 bg-gray-900 rounded p-3">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs text-gray-400">Último output</span>
+                      <span className="text-xs text-gray-400">{t('cron.lastOutput')}</span>
                       <button onClick={() => setViewingRuns(null)} className="text-xs text-gray-500">✕</button>
                     </div>
                     <pre className="text-xs text-gray-300 whitespace-pre-wrap max-h-32 overflow-y-auto">{runOutput}</pre>
@@ -265,7 +267,7 @@ export default function CronPage() {
               </div>
             );
           })}
-          {filtered.length === 0 && <p className="text-gray-500 text-center py-8">No hay jobs que coincidan con el filtro</p>}
+          {filtered.length === 0 && <p className="text-gray-500 text-center py-8">{t('cron.noJobsMatch')}</p>}
         </div>
       )}
 
@@ -273,21 +275,21 @@ export default function CronPage() {
       {editing && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto py-8">
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-white mb-4">{editing._isNew ? 'Nuevo Job' : 'Editar Job'}</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">{editing._isNew ? t('cron.newJob') : t('cron.editJob')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400">Nombre</label>
+                <label className="text-sm text-gray-400">{t('cron.name')}</label>
                 <input value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })}
                   className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-gray-400">Agente</label>
+                  <label className="text-sm text-gray-400">{t('cron.agent')}</label>
                   <input value={editing.agentId || ''} onChange={e => setEditing({ ...editing, agentId: e.target.value })}
                     className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="main" />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400">Session Target</label>
+                  <label className="text-sm text-gray-400">{t('cron.sessionTarget')}</label>
                   <select value={editing.sessionTarget || 'isolated'} onChange={e => setEditing({ ...editing, sessionTarget: e.target.value })}
                     className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
                     <option value="isolated">Isolated</option>
@@ -297,17 +299,17 @@ export default function CronPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-gray-400">Schedule Kind</label>
+                  <label className="text-sm text-gray-400">{t('cron.scheduleKind')}</label>
                   <select value={editing.schedule?.kind || 'cron'} onChange={e => setEditing({ ...editing, schedule: { ...editing.schedule, kind: e.target.value } })}
                     className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
                     <option value="cron">Cron</option>
                     <option value="every">Interval</option>
-                    <option value="at">At (una vez)</option>
+                    <option value="at">At ({t('cron.once')})</option>
                   </select>
                 </div>
                 <div>
                   <label className="text-sm text-gray-400">
-                    {editing.schedule?.kind === 'cron' ? 'Expresión cron' : editing.schedule?.kind === 'every' ? 'Intervalo (ms)' : 'Fecha/hora'}
+                    {editing.schedule?.kind === 'cron' ? t('cron.cronExpression') : editing.schedule?.kind === 'every' ? t('cron.interval') : t('cron.dateTime')}
                   </label>
                   <input value={editing.schedule?.expr || editing.schedule?.everyMs || editing.schedule?.at || ''}
                     onChange={e => {
@@ -323,13 +325,13 @@ export default function CronPage() {
               </div>
               {editing.schedule?.kind === 'cron' && (
                 <div>
-                  <label className="text-sm text-gray-400">Timezone</label>
+                  <label className="text-sm text-gray-400">{t('cron.timezone')}</label>
                   <input value={editing.schedule?.tz || ''} onChange={e => setEditing({ ...editing, schedule: { ...editing.schedule, tz: e.target.value } })}
                     className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" placeholder="America/Chicago" />
                 </div>
               )}
               <div>
-                <label className="text-sm text-gray-400">Payload Kind</label>
+                <label className="text-sm text-gray-400">{t('cron.payloadKind')}</label>
                 <select value={editing.payload?.kind || 'agentTurn'} onChange={e => setEditing({ ...editing, payload: { ...editing.payload, kind: e.target.value } })}
                   className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
                   <option value="agentTurn">Agent Turn</option>
@@ -337,7 +339,7 @@ export default function CronPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm text-gray-400">{editing.payload?.kind === 'systemEvent' ? 'Texto del evento' : 'Prompt'}</label>
+                <label className="text-sm text-gray-400">{editing.payload?.kind === 'systemEvent' ? t('cron.eventText') : t('cron.prompt')}</label>
                 <textarea value={editing.payload?.message || editing.payload?.text || ''}
                   onChange={e => {
                     const field = editing.payload?.kind === 'systemEvent' ? 'text' : 'message';
@@ -348,12 +350,12 @@ export default function CronPage() {
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={editing.enabled ?? true}
                   onChange={e => setEditing({ ...editing, enabled: e.target.checked })} />
-                <label className="text-sm text-gray-400">Habilitado</label>
+                <label className="text-sm text-gray-400">{t('config.enabled')}</label>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setEditing(null)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">Cancelar</button>
-              <button onClick={save} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">Guardar</button>
+              <button onClick={() => setEditing(null)} className="px-4 py-2 text-gray-400 hover:text-white text-sm">{t('cron.cancel')}</button>
+              <button onClick={save} className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">{t('cron.save')}</button>
             </div>
           </div>
         </div>

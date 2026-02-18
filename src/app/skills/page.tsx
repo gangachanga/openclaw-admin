@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '@/components/ssh-provider';
+import { useI18n } from '@/i18n/provider';
 
 interface Skill {
   name: string;
@@ -18,6 +19,7 @@ interface InstallForm {
 
 export default function SkillsPage() {
   const { api, connected } = useAdmin();
+  const { t } = useI18n();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
@@ -68,9 +70,9 @@ export default function SkillsPage() {
       });
       
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error instalando skill');
+      if (!res.ok) throw new Error(data.error || t('common.error'));
       
-      setSuccess(`Skill "${installForm.name}" instalado correctamente`);
+      setSuccess(t('skills.skillInstalled').replace('%s', installForm.name));
       setShowInstall(false);
       setInstallForm({ url: '', name: '' });
       load();
@@ -84,7 +86,7 @@ export default function SkillsPage() {
   };
 
   const uninstall = async (skill: Skill) => {
-    if (!confirm(`¿Desinstalar skill "${skill.name}"?`)) return;
+    if (!confirm(t('skills.uninstallConfirm').replace('%s', skill.name))) return;
     try {
       const res = await fetch('/api/ssh/skills/uninstall', {
         method: 'POST',
@@ -93,9 +95,9 @@ export default function SkillsPage() {
       });
       
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error desinstalando');
+      if (!res.ok) throw new Error(data.error || t('common.error'));
       
-      setSuccess(`Skill "${skill.name}" desinstalado`);
+      setSuccess(t('skills.skillUninstalled').replace('%s', skill.name));
       load();
       setTimeout(() => setSuccess(''), 3000);
     } catch (e: any) {
@@ -111,20 +113,20 @@ export default function SkillsPage() {
     window.open(`https://clawhub.ai/${author}/${skillName}`, '_blank');
   };
 
-  if (!connected) return <div className="p-6 text-gray-400">Esperando conexión SSH...</div>;
+  if (!connected) return <div className="p-6 text-gray-400">{t('skills.waitingSSH')}</div>;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">🎯 Skills</h1>
-          <p className="text-gray-400 text-sm mt-1">Gestiona skills de OpenClaw</p>
+          <h1 className="text-2xl font-bold text-white">🎯 {t('skills.title')}</h1>
+          <p className="text-gray-400 text-sm mt-1">{t('skills.manageSkills')}</p>
         </div>
         <button 
           onClick={() => setShowInstall(true)} 
           className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm"
         >
-          + Instalar Skill
+          + {t('skills.installSkill')}
         </button>
       </div>
 
@@ -141,7 +143,7 @@ export default function SkillsPage() {
       )}
 
       {loading ? (
-        <div className="text-gray-400">Cargando skills...</div>
+        <div className="text-gray-400">{t('skills.loading')}</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {skills.map((skill) => (
@@ -155,7 +157,7 @@ export default function SkillsPage() {
                         ? 'bg-blue-900/50 text-blue-300' 
                         : 'bg-gray-700 text-gray-400'
                     }`}>
-                      {skill.source}
+                      {t(`skills.${skill.source}`)}
                     </span>
                     {skill.version && (
                       <span className="text-xs text-gray-500">v{skill.version}</span>
@@ -173,19 +175,19 @@ export default function SkillsPage() {
                   onClick={() => openClawHub(skill)} 
                   className="text-xs text-blue-400 hover:text-blue-300"
                 >
-                  Ver en ClawHub
+                  {t('skills.viewOnClawHub')}
                 </button>
                 <button 
                   onClick={() => uninstall(skill)} 
                   className="text-xs text-red-400 hover:text-red-300"
                 >
-                  Desinstalar
+                  {t('skills.uninstall')}
                 </button>
               </div>
             </div>
           ))}
           {skills.length === 0 && (
-            <p className="text-gray-500 col-span-full">No hay skills instalados</p>
+            <p className="text-gray-500 col-span-full">{t('skills.noSkills')}</p>
           )}
         </div>
       )}
@@ -194,39 +196,39 @@ export default function SkillsPage() {
       {showInstall && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto py-8">
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-full max-w-lg mx-4">
-            <h2 className="text-lg font-semibold text-white mb-4">Instalar Skill</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">{t('skills.installSkill')}</h2>
             
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400">Nombre del skill</label>
+                <label className="text-sm text-gray-400">{t('skills.skillName')}</label>
                 <input 
                   value={installForm.name} 
                   onChange={e => setInstallForm({ ...installForm, name: e.target.value })}
-                  placeholder="ej: humanizer"
+                  placeholder="ex: humanizer"
                   className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm mt-1"
                 />
               </div>
               
               <div>
-                <label className="text-sm text-gray-400">URL del skill</label>
+                <label className="text-sm text-gray-400">{t('skills.skillUrl')}</label>
                 <input 
                   value={installForm.url} 
                   onChange={e => setInstallForm({ ...installForm, url: e.target.value })}
-                  placeholder="https://clawhub.ai/autor/skill-name o https://github.com/..."
+                  placeholder="https://clawhub.ai/author/skill-name or https://github.com/..."
                   className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm mt-1"
                 />
                 <p className="text-gray-500 text-xs mt-1">
-                  Acepta URLs de ClawHub o GitHub
+                  {t('skills.alsoInstall')}
                 </p>
               </div>
 
               <div className="bg-gray-900/50 p-3 rounded text-sm">
-                <p className="text-gray-400 mb-2">También podés instalar desde:</p>
+                <p className="text-gray-400 mb-2">{t('skills.alsoInstall')}:</p>
                 <button 
                   onClick={() => window.open('https://clawhub.ai', '_blank')}
                   className="text-orange-400 hover:text-orange-300"
                 >
-                  🦞 ClawHub - Directorio de skills
+                  🦞 {t('skills.clawHubDirectory')}
                 </button>
               </div>
             </div>
@@ -236,14 +238,14 @@ export default function SkillsPage() {
                 onClick={() => setShowInstall(false)} 
                 className="px-4 py-2 text-gray-400 hover:text-white text-sm"
               >
-                Cancelar
+                {t('skills.cancel')}
               </button>
               <button 
                 onClick={install} 
                 disabled={installing || !installForm.url || !installForm.name}
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white rounded-lg text-sm"
               >
-                {installing ? 'Instalando...' : 'Instalar'}
+                {installing ? t('skills.installing') : t('skills.install')}
               </button>
             </div>
           </div>
