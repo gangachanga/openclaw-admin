@@ -72,6 +72,9 @@ export default function AgentsPage() {
 
   useEffect(() => { if (connected) { load(); loadModels(); } }, [connected]);
 
+
+  const telegramAccounts = Object.keys(fullConfig?.channels?.telegram?.accounts || {});
+
   const findBindingForAgent = (agentId: string) => {
     const bindings = fullConfig?.bindings || [];
     return bindings.find((b: any) => b?.agentId === agentId);
@@ -265,9 +268,22 @@ export default function AgentsPage() {
                     </div>
                     <div>
                       <label className="text-sm text-gray-400">Account ID (opcional)</label>
-                      <input value={editing.bindingAccountId} onChange={e => setEditing({ ...editing, bindingAccountId: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-                        placeholder="ej: neo / personal / default" />
+                      {editing.bindingChannel === 'telegram' && telegramAccounts.length > 0 ? (
+                        <select
+                          value={editing.bindingAccountId}
+                          onChange={e => setEditing({ ...editing, bindingAccountId: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                        >
+                          <option value="">(default)</option>
+                          {telegramAccounts.map((acc) => (
+                            <option key={acc} value={acc}>{acc}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input value={editing.bindingAccountId} onChange={e => setEditing({ ...editing, bindingAccountId: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          placeholder="ej: neo / personal / default" />
+                      )}
                     </div>
                   </div>
                 </div>
