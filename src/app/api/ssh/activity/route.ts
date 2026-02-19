@@ -66,6 +66,32 @@ export async function GET() {
       }
     }
 
+    // Fallback: if no plain log events were found, use cron status as activity source.
+    if (events.length === 0) {
+      try {
+        const cronList = await sshExec('openclaw cron list --json', 10000);
+        const parsed = JSON.parse(cronList.stdout || '{}');
+        const jobs = Array.isArray(parsed?.jobs) ? parsed.jobs : [];
+
+        for (const j of jobs) {
+          const runAt = j?.state?.lastRunAtMs;
+          if (!runAt) continue;
+          const ts = new Date(runAt).toISOString();
+          const status = String(j?.state?.lastStatus || '').toLowerCase();
+          const type: ActivityEvent['type'] = status === 'error' ? 'error' : 'cron';
+          const msg = status === 'error'
+            ? `Cron ${j?.name || j?.id}: error (${j?.state?.lastError || 'sin detalle'})`
+            : `Cron ${j?.name || j?.id}: ${status || 'ok'}`;
+
+          if (msg.length < 500) {
+            events.push({ timestamp: ts, type, message: msg });
+          }
+        }
+      } catch {
+        // ignore fallback errors
+      }
+    }
+
     // Return last 50 most recent
     return NextResponse.json({ events: events.slice(-50).reverse() });
   } catch (err: any) {
