@@ -13,10 +13,23 @@ export async function GET() {
   }
 
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = `/tmp/openclaw-1000/openclaw-${today}.log`;
+    // Build activity feed from whichever OpenClaw log file exists on the remote host.
+    // We intentionally avoid assuming uid=1000 or UTC date boundaries.
+    const cmd = [
+      'set -e',
+      // Prefer latest daily log from /tmp/openclaw-*/openclaw-YYYY-MM-DD.log
+      "daily=$(ls -1t /tmp/openclaw-*/openclaw-*.log 2>/dev/null | head -1 || true)",
+      // Fallbacks used by some deployments
+      "fallback1=\"$HOME/.openclaw/logs/gateway.log\"",
+      "fallback2=\"$HOME/.openclaw/openclaw.log\"",
+      'if [ -n "$daily" ]; then target="$daily";',
+      'elif [ -f "$fallback1" ]; then target="$fallback1";',
+      'elif [ -f "$fallback2" ]; then target="$fallback2";',
+      'else target=""; fi',
+      'if [ -n "$target" ]; then tail -n 200 "$target"; fi',
+    ].join('; ');
 
-    const result = await sshExec(`tail -100 ${logFile} 2>/dev/null || echo ""`, 5000);
+    const result = await sshExec(cmd, 8000);
     const lines = result.stdout.split('\n').filter(Boolean);
 
     const events: ActivityEvent[] = [];
