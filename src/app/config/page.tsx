@@ -77,7 +77,6 @@ export default function ConfigPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [agents, setAgents] = useState<string[]>([]);
   const [showAddTelegramAccount, setShowAddTelegramAccount] = useState(false);
   const [newTelegramAccount, setNewTelegramAccount] = useState({ name: '', botToken: '', dmPolicy: 'allowlist' });
 
@@ -88,14 +87,6 @@ export default function ConfigPage() {
       setConfig(data.config);
       setRaw(data.raw || JSON.stringify(data.config, null, 2));
       
-      // Load agents
-      try {
-        const agentsData = await api.listAgents();
-        const agentIds = agentsData.agents?.map((a: any) => a.id || a.label) || [];
-        setAgents(agentIds);
-      } catch (err) {
-        console.error('Failed to load agents:', err);
-      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -246,65 +237,7 @@ export default function ConfigPage() {
             </div>
           </Section>
 
-          {/* Bindings - MUST BE FIRST! */}
-          <Section title="Bindings (Canal → Agente)" icon="🔗" defaultOpen>
-            <div className="p-3 bg-blue-900/30 border border-blue-700 rounded text-blue-300 text-xs mb-3">
-              📌 {t('config.bindingsHint')}
-            </div>
-            <div className="space-y-3">
-              {(get('bindings', []) as any[]).map((binding, i) => (
-                <div key={i} className="bg-gray-900 rounded p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-sm">
-                      <img src={`/api/avatars/${binding.agentId}`} alt="" className="w-5 h-5 rounded-full"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      <span className="text-white font-medium">{binding.agentId}</span>
-                      <span className="text-gray-500">←</span>
-                      <span className="text-gray-400">{binding.match?.channel}{binding.match?.accountId ? `:${binding.match.accountId}` : ''}</span>
-                    </div>
-                    <button onClick={() => {
-                      const bindings = [...get('bindings', [])];
-                      bindings.splice(i, 1);
-                      update('bindings', bindings);
-                    }} className="text-red-400 hover:text-red-300 text-xs">✕</button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Field label="Agente" value={binding.agentId} onChange={v => {
-                      const bindings = [...get('bindings', [])];
-                      bindings[i] = { ...bindings[i], agentId: v };
-                      update('bindings', bindings);
-                    }} type="select" options={agents.map(a => ({ value: a, label: a }))} />
-                    <Field label="Canal" value={binding.match?.channel || 'telegram'} onChange={v => {
-                      const bindings = [...get('bindings', [])];
-                      bindings[i] = { ...bindings[i], match: { ...bindings[i].match, channel: v } };
-                      update('bindings', bindings);
-                    }} type="select" options={[
-                      { value: 'telegram', label: 'Telegram' },
-                      { value: 'whatsapp', label: 'WhatsApp' },
-                      { value: 'discord', label: 'Discord' },
-                      { value: 'signal', label: 'Signal' },
-                    ]} />
-                    <Field label="Account ID" value={binding.match?.accountId || ''} onChange={v => {
-                      const bindings = [...get('bindings', [])];
-                      const match = { ...bindings[i].match, accountId: v || undefined };
-                      if (!v) delete match.accountId;
-                      bindings[i] = { ...bindings[i], match };
-                      update('bindings', bindings);
-                    }} placeholder="default" />
-                  </div>
-                </div>
-              ))}
-              
-              {/* Add new binding */}
-              <button onClick={() => {
-                const bindings = [...get('bindings', [])];
-                bindings.push({ agentId: agents[0] || 'main', match: { channel: 'telegram' } });
-                update('bindings', bindings);
-              }} className="w-full py-2 border border-dashed border-gray-600 rounded text-sm text-orange-400 hover:text-orange-300 hover:border-gray-500">
-                + {t('config.addBinding')}
-              </button>
-            </div>
-          </Section>
+
 
           {/* Channels - Telegram */}
           <Section title="Telegram" icon="📱">
