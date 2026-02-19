@@ -13,6 +13,8 @@ interface AgentForm {
   tools: { allow: string[]; deny: string[] };
   subagents: { allowAgents: string[] };
   sandbox: { mode: string; scope: string };
+  bindingChannel: string;
+  bindingAccountId: string;
 }
 
 const emptyForm: AgentForm = {
@@ -20,6 +22,8 @@ const emptyForm: AgentForm = {
   tools: { allow: [], deny: [] },
   subagents: { allowAgents: [] },
   sandbox: { mode: 'off', scope: 'session' },
+  bindingChannel: 'telegram',
+  bindingAccountId: '',
 };
 
 interface ModelOption {
@@ -36,12 +40,21 @@ export default function AgentsPage() {
   const [editing, setEditing] = useState<AgentForm | null>(null);
   const [error, setError] = useState('');
   const [models, setModels] = useState<{ primaryModel: string; builtin: ModelOption[]; custom: ModelOption[]; aliases: any[] }>({ primaryModel: '', builtin: [], custom: [], aliases: [] });
+  const [fullConfig, setFullConfig] = useState<any>(null);
+
+  const [mdFile, setMdFile] = useState('AGENTS.md');
+  const [mdContent, setMdContent] = useState('');
+  const [mdLoading, setMdLoading] = useState(false);
 
   const load = async () => {
     try {
       setLoading(true);
-      const data = await api.listAgents();
-      setAgents(data.agents || []);
+      const [agentsData, configData] = await Promise.all([
+        api.listAgents(),
+        api.getConfig(),
+      ]);
+      setAgents(agentsData.agents || []);
+      setFullConfig(configData.config || {});
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -59,15 +72,72 @@ export default function AgentsPage() {
 
   useEffect(() => { if (connected) { load(); loadModels(); } }, [connected]);
 
+  const findBindingForAgent = (agentId: string) => {
+    const bindings = fullConfig?.bindings || [];
+    return bindings.find((b: any) => b?.agentId === agentId);
+  };
+
+  const loadMdFile = async (agentId: string, file: string) => {
+    try {
+      setMdLoading(true);
+      const data = await api.readWorkspaceFile(file, agentId);
+      setMdContent(data.content || '');
+    } catch (e: any) {
+      setMdContent('');
+      setError(e.message || `No se pudo leer ${file}`);
+    } finally {
+      setMdLoading(false);
+    }
+  };
+
+  const openEditor = async (agent: any) => {
+    const binding = findBindingForAgent(agent.id);
+    const form = {
+      ...emptyForm,
+      ...agent,
+      tools: { allow: [], deny: [], ...agent.tools },
+      subagents: { allowAgents: [], ...agent.subagents },
+      sandbox: { mode: 'off', scope: 'session', ...agent.sandbox },
+      bindingChannel: binding?.match?.channel || 'telegram',
+      bindingAccountId: binding?.match?.accountId || '',
+    };
+    setEditing(form);
+    setMdFile('AGENTS.md');
+    await loadMdFile(agent.id, 'AGENTS.md');
+  };
+
   const save = async () => {
     if (!editing) return;
     try {
-      console.log('Saving agent:', JSON.stringify(editing, null, 2));
       await api.updateAgent(editing);
+
+      const cfg = JSON.parse(JSON.stringify(fullConfig || {}));
+      if (!Array.isArray(cfg.bindings)) cfg.bindings = [];
+
+      cfg.bindings = cfg.bindings.filter((b: any) => b?.agentId !== editing.id);
+      cfg.bindings.push({
+        agentId: editing.id,
+        match: {
+          channel: editing.bindingChannel || 'telegram',
+          ...(editing.bindingAccountId ? { accountId: editing.bindingAccountId } : {}),
+        },
+      });
+
+      await api.setConfig(cfg, true);
+
       setEditing(null);
       load();
     } catch (e: any) {
       setError(e.message);
+    }
+  };
+
+  const saveMdFile = async () => {
+    if (!editing) return;
+    try {
+      await api.writeWorkspaceFile(mdFile, mdContent, editing.id);
+    } catch (e: any) {
+      setError(e.message || `No se pudo guardar ${mdFile}`);
     }
   };
 
@@ -121,9 +191,15 @@ export default function AgentsPage() {
                   </div>
                 </div>
               </div>
-              <p className="text-gray-400 text-sm mb-3">{t('agents.model')}: {agent.model || 'default'}</p>
+              <p className="text-gray-400 text-sm mb-1">{t('agents.model')}: {agent.model || 'default'}</p>
+              {findBindingForAgent(agent.id) && (
+                <p className="text-gray-500 text-xs mb-3">
+                  binding: {findBindingForAgent(agent.id)?.match?.channel}
+                  {findBindingForAgent(agent.id)?.match?.accountId ? `:${findBindingForAgent(agent.id)?.match?.accountId}` : ''}
+                </p>
+              )}
               <div className="flex gap-2">
-                <button onClick={() => setEditing({ ...emptyForm, ...agent, tools: { allow: [], deny: [], ...agent.tools }, subagents: { allowAgents: [], ...agent.subagents }, sandbox: { mode: 'off', scope: 'session', ...agent.sandbox } })} className="text-xs text-blue-400 hover:text-blue-300">
+                <button onClick={() => openEditor(agent)} className="text-xs text-blue-400 hover:text-blue-300">
                   {t('agents.edit')}
                 </button>
                 <button onClick={() => remove(agent.id)} className="text-xs text-red-400 hover:text-red-300">
@@ -136,95 +212,117 @@ export default function AgentsPage() {
         </div>
       )}
 
-      {/* Edit Modal */}
       {editing && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 overflow-y-auto py-8">
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 w-full max-w-5xl max-h-[92vh] overflow-y-auto mx-4">
             <h2 className="text-lg font-semibold text-white mb-4">{editing.id ? t('agents.editAgent') : t('agents.newAgent')}</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-400">{t('agents.id')}</label>
-                  <input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">{t('agents.name')}</label>
-                  <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400">{t('agents.model')}</label>
-                  <select value={editing.model || ''} onChange={e => {
-                    console.log('Model selected:', e.target.value);
-                    setEditing({ ...editing, model: e.target.value });
-                  }} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
-                    <option value="">{t('agents.noOverride')} ({models.primaryModel || t('agents.systemDefault')})</option>
-                    {models.aliases.length > 0 && (
-                      <optgroup label={`⚡ ${t('agents.aliases')}`}>
-                        {models.aliases.map(a => (
-                          <option key={a.id} value={a.id}>{a.name} → {a.resolves}</option>
-                        ))}
-                      </optgroup>
-                    )}
-                    {(() => {
-                      const grouped: Record<string, ModelOption[]> = {};
-                      for (const m of models.builtin) {
-                        (grouped[m.provider] = grouped[m.provider] || []).push(m);
-                      }
-                      return Object.entries(grouped).map(([provider, ms]) => (
-                        <optgroup key={provider} label={provider.charAt(0).toUpperCase() + provider.slice(1)}>
-                          {ms.map(m => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-400">{t('agents.id')}</label>
+                    <input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400">{t('agents.name')}</label>
+                    <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400">{t('agents.model')}</label>
+                    <select value={editing.model || ''} onChange={e => setEditing({ ...editing, model: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+                      <option value="">{t('agents.noOverride')} ({models.primaryModel || t('agents.systemDefault')})</option>
+                      {models.aliases.length > 0 && (
+                        <optgroup label={`⚡ ${t('agents.aliases')}`}>
+                          {models.aliases.map(a => (
+                            <option key={a.id} value={a.id}>{a.name} → {a.resolves}</option>
                           ))}
                         </optgroup>
-                      ));
-                    })()}
-                    {models.custom.length > 0 && (
-                      <optgroup label={`🔧 ${t('agents.custom')}`}>
-                        {models.custom.map(m => (
-                          <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
+                      )}
+                      {models.builtin.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400">{t('agents.workspace')}</label>
+                    <input value={editing.workspace} onChange={e => setEditing({ ...editing, workspace: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
+                  </div>
                 </div>
+
+                <div className="border border-gray-700 rounded p-3 space-y-3">
+                  <h3 className="text-sm font-semibold text-white">Bindings / Comunicación</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm text-gray-400">Canal</label>
+                      <select value={editing.bindingChannel} onChange={e => setEditing({ ...editing, bindingChannel: e.target.value })}
+                        className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+                        <option value="telegram">Telegram</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="discord">Discord</option>
+                        <option value="signal">Signal</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm text-gray-400">Account ID (opcional)</label>
+                      <input value={editing.bindingAccountId} onChange={e => setEditing({ ...editing, bindingAccountId: e.target.value })}
+                        className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                        placeholder="ej: neo / personal / default" />
+                    </div>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="text-sm text-gray-400">{t('agents.workspace')}</label>
-                  <input value={editing.workspace} onChange={e => setEditing({ ...editing, workspace: e.target.value })} className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm" />
+                  <label className="text-sm text-gray-400">{t('agents.toolsAllow')}</label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {OPENCLAW_TOOLS.map(tool => (
+                      <button key={tool} onClick={() => toggleTool('allow', tool)}
+                        className={`text-xs px-2 py-1 rounded ${editing.tools.allow.includes(tool) ? 'bg-green-800 text-green-200' : 'bg-gray-700 text-gray-400'}`}>
+                        {tool}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm text-gray-400">{t('agents.toolsDeny')}</label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {OPENCLAW_TOOLS.map(tool => (
+                      <button key={tool} onClick={() => toggleTool('deny', tool)}
+                        className={`text-xs px-2 py-1 rounded ${editing.tools.deny.includes(tool) ? 'bg-red-800 text-red-200' : 'bg-gray-700 text-gray-400'}`}>
+                        {tool}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm text-gray-400">{t('agents.toolsAllow')}</label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {OPENCLAW_TOOLS.map(tool => (
-                    <button key={tool} onClick={() => toggleTool('allow', tool)}
-                      className={`text-xs px-2 py-1 rounded ${editing.tools.allow.includes(tool) ? 'bg-green-800 text-green-200' : 'bg-gray-700 text-gray-400'}`}>
-                      {tool}
-                    </button>
-                  ))}
+              <div className="space-y-3 border border-gray-700 rounded p-3">
+                <h3 className="text-sm font-semibold text-white">Editar .md del agente</h3>
+                <div className="flex gap-2">
+                  <select
+                    value={mdFile}
+                    onChange={async (e) => {
+                      const file = e.target.value;
+                      setMdFile(file);
+                      if (editing.id) await loadMdFile(editing.id, file);
+                    }}
+                    className="bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                  >
+                    <option>AGENTS.md</option>
+                    <option>SOUL.md</option>
+                    <option>USER.md</option>
+                    <option>MEMORY.md</option>
+                    <option>HEARTBEAT.md</option>
+                  </select>
+                  <button onClick={saveMdFile} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">Guardar MD</button>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-400">{t('agents.toolsDeny')}</label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {OPENCLAW_TOOLS.map(tool => (
-                    <button key={tool} onClick={() => toggleTool('deny', tool)}
-                      className={`text-xs px-2 py-1 rounded ${editing.tools.deny.includes(tool) ? 'bg-red-800 text-red-200' : 'bg-gray-700 text-gray-400'}`}>
-                      {tool}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-400">{t('agents.sandboxMode')}</label>
-                <select value={editing.sandbox.mode} onChange={e => setEditing({ ...editing, sandbox: { ...editing.sandbox, mode: e.target.value } })}
-                  className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-sm">
-                  <option value="off">Off</option>
-                  <option value="non-main">Non-Main</option>
-                  <option value="all">All</option>
-                </select>
+                <textarea
+                  value={mdContent}
+                  onChange={(e) => setMdContent(e.target.value)}
+                  className="w-full h-[420px] bg-gray-900 border border-gray-600 rounded px-3 py-2 text-white text-xs font-mono"
+                  placeholder={mdLoading ? 'Cargando...' : 'Contenido del archivo...'}
+                />
               </div>
             </div>
 
