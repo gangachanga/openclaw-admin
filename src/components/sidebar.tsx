@@ -20,7 +20,6 @@ export function Sidebar() {
     { href: '/config', label: t('sidebar.config'), icon: '⚙️' },
     { href: '/sessions', label: t('sidebar.sessions'), icon: '⚡' },
     { href: '/costs', label: t('sidebar.costs'), icon: '💰' },
-    { href: '/knowledge', label: t('sidebar.knowledge'), icon: '📚' },
     { href: '/monitoring', label: t('sidebar.monitoring'), icon: '📊' },
     { href: '/terminal', label: t('sidebar.terminal'), icon: '🖥️' },
   ];
